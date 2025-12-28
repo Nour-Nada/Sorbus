@@ -32,6 +32,17 @@ int main(void)
 
     // Get Routes
 
+    svr.Get("/api/login", [](const httplib::Request& req, httplib::Response& res) { //Logging in a user
+        std::string key = req.get_header_value("key");
+
+        if (key == API_KEY) { //Checks for matching API keys
+            res.set_content("", "text/plain");
+        }
+        else {
+            res.set_content("Incorrect API Key", "text/plain");
+        }
+    });
+
     svr.Get("/api/files/name", [](const httplib::Request& req, httplib::Response& res) { //Retreving file names
         std::string key = req.get_header_value("key");
 
@@ -112,6 +123,13 @@ int main(void)
         else {
             res.set_content("Incorrect API Key", "text/plain");
         }
+    });
+
+
+    //Fallback route
+    svr.set_error_handler([](const httplib::Request& req, httplib::Response& res) { //Catches unkown routes
+        res.status = 404;
+        res.set_content("Endpoint not found", "text/plain");
     });
 
     std::cout << "Server listening on port " << PORT << " ...\n";
