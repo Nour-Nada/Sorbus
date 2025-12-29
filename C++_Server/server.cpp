@@ -1,14 +1,23 @@
+//Default Headers
 #include <iostream>
 #include <string>
 #include <fstream>
 #include <filesystem>
 #include <stdio.h>
 #include <sstream>
+#include <chrono>
+#include <ctime>
+#include <iomanip>
 
+//Download System Headers
 #include <pqxx/pqxx>
 
+//Downloaded one file headers
 #include "httplib.h"
 #include "json.hpp"
+
+//Created headers
+#include "server_functions.h"
 
 #define PORT 8080 //Server Port
 
@@ -28,6 +37,7 @@ const std::string DB_QUERY_ERROR = "An Error Occurred in Querying the Database; 
 
 //Global String Success
 const std::string GOOD_DB_CONNECTION = "Connected to PostgreSQL Server; API Path ";
+
 
 
 int main(void)
@@ -139,6 +149,8 @@ int main(void)
 
         //TO-DO: Implement downloading file logic
         svr.Get("/api/files/download/:user_id/:file_id/", [](const httplib::Request& req, httplib::Response& res) { //Downloading a file
+            std::string time = "[" + getTimestamp() + "] ";
+            std::cout << time;
             if (req.has_header("key")) {
                 std::string API_PATH = "GET: /api/files/download";
                 std::string key = req.get_header_value("key");
@@ -146,7 +158,7 @@ int main(void)
                 std::string user_id = req.path_params.at("user_id");
 
                 if (key == API_KEY) { //Checks for matching API keys
-
+                    
                     pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
                     if (!DB_Connection.is_open()) {
                         std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
@@ -189,6 +201,8 @@ int main(void)
 
         //TO-DO: Implement uploading file logic
         svr.Post("/api/files/upload/:user_id/:file_location", [](const httplib::Request& req, httplib::Response& res) { //Uploading a file a file
+            std::string time = "[" + getTimestamp() + "] ";
+            std::cout << time;
             if (req.has_header("key")) {
                 std::string API_PATH = "POST: /api/files/upload";
                 std::string key = req.get_header_value("key");
@@ -238,6 +252,8 @@ int main(void)
         // Patch Routes
 
         svr.Patch("/api/files/name/:file_id/:new_name", [](const httplib::Request& req, httplib::Response& res) { //Renaming a file
+            std::string time = "[" + getTimestamp() + "] ";
+            std::cout << time;
             if (req.has_header("key")) {
                 std::string API_PATH = "PATCH: /api/files/name";
                 std::string key = req.get_header_value("key");
@@ -284,6 +300,8 @@ int main(void)
         });
 
         svr.Patch("/api/files/move/:user_id/:file_id/:new_file_location", [](const httplib::Request& req, httplib::Response& res) { //Moving a file
+            std::string time = "[" + getTimestamp() + "] ";
+            std::cout << time;
             if (req.has_header("key")) {
                 std::string API_PATH = "PATCH: /api/files/move";
                 std::string key = req.get_header_value("key");
@@ -333,6 +351,8 @@ int main(void)
         // Delete Routes
 
         svr.Delete("/api/files/delete/:file_id", [](const httplib::Request& req, httplib::Response& res) { //Deletes a file
+            std::string time = "[" + getTimestamp() + "] ";
+            std::cout << time;
             if (req.has_header("key")) {
                 std::string API_PATH = "DELETE: /api/files/delete";
                 std::string key = req.get_header_value("key");
@@ -381,7 +401,9 @@ int main(void)
         //Fallback route
         svr.set_error_handler([](const httplib::Request& req, httplib::Response& res) { //Catches unknown routes
             res.status = 404;
-            res.set_content("Endpoint not Found | or | An Uncaught Error Occured", "text/plain");
+            std::string time = getTimestamp();
+            std::string api_error = "[" + time + "] " + "Endpoint not Found | or | An Uncaught Error Occurred";
+            res.set_content(api_error, "text/plain");
         });
 
     } catch (const std::exception& e) {
@@ -389,7 +411,8 @@ int main(void)
         return 1;
     }
 
-    std::cout << std::endl << std::endl << "Server listening on port " << PORT << " ...\n";
+    std::string currTime = "[" + getTimestamp() + "] ";
+    std::cout << std::endl << std::endl << currTime << "Server listening on port " << PORT << " ...\n";
     svr.listen("localhost", PORT);
 
     return 0;
