@@ -25,6 +25,7 @@
 httplib::Server svr;
 
 //Global Variables
+//TO-DO: Hide variables from file before deployent
 const std::string API_KEY = "test12345"; //The API key
 const std::string OUTPUT_FILE = "server_output.txt"; //Where the print statements, errors, and more gets outputted to in deployment
 std::string FILE_LOCATION = "/Test_File_Storage"; //The location of the stored files
@@ -34,6 +35,7 @@ const std::string BAD_DB_CONNECTION = "Cannot Connect to Database; API Path ";
 const std::string NO_HEADER = "There is no Header Attached with this Request";
 const std::string INCORRECT_API_KEY = "Incorrect API Key";
 const std::string DB_QUERY_ERROR = "An Error Occurred in Querying the Database; API Path ";
+const std::string BAD_PARAMATER = "An Incorrect Parameter was Passed In; API Path ";
 
 //Global String Success
 const std::string GOOD_DB_CONNECTION = "Connected to PostgreSQL Server; API Path ";
@@ -75,69 +77,79 @@ int main(void)
                 std::string API_PATH = "GET: /api/files/name"; //Path in variable for error messages
                 std::string key = req.get_header_value("key");
                 std::string user_id = req.path_params.at("user_id");
-                int user_id_int = std::stoi(user_id);
+
+                int user_id_int = 0;
+                try {
+                    user_id_int = std::stoi(user_id);
+                } catch (const std::invalid_argument& e) {
+                    std::cout << BAD_PARAMATER << API_PATH << std::endl;
+                    res.set_content(BAD_PARAMATER, "text/plain");
+                    return;
+                }
 
                 if (key == API_KEY) { //Checks for matching API keys
+                    res.status = 401;
+                    std::cout << INCORRECT_API_KEY << API_PATH << std::endl;
+                    res.set_content(INCORRECT_API_KEY, "text/plain");
+                    return;
+                }
 
-                    pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
-                    if (!DB_Connection.is_open()) {
-                        std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                        return;
-                    }
-                    else {
-                        std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-                    }
-
-                    pqxx::nontransaction DB_Open_Connection{ DB_Connection };
-                    try {
-                        pqxx::result result = DB_Open_Connection.exec(
-                            pqxx::zview("SELECT * from files WHERE user_id = $1 ORDER BY file_location ASC;"),
-                            user_id_int
-                        );
-
-                        nlohmann::json tree = nlohmann::json::object(); //Creates JSON object
-
-                        for (const auto& row : result) {
-                            std::string file_location = row["file_location"].c_str();
-                            std::string file_name = row["file_name"].c_str();
-                            std::string type = row["file_extension"].c_str(); // "file" or "folder"
-
-                            nlohmann::json* current = &tree; //Sets current equal to the JSON object
-
-                            std::stringstream ss(file_location);
-                            std::string folder;
-
-                            while (std::getline(ss, folder, '/')) { //Creates the JSON structure to be returned
-                                if (folder.empty()) continue;
-
-                                // If the folder doesn't exist yet, create it as an object
-                                if (!current->contains(folder)) {
-                                    (*current)[folder] = nlohmann::json::object();
-                                }
-
-                                current = &(*current)[folder];
-                            }
-
-                            //Just assigns the location directly creating the Key Value pair
-                            if (type != "file") {
-                                (*current)[file_name] = file_location;
-                            }
-                        }
-
-                        //std::cout << "JSON Output: " << std::endl << tree.dump(4) << std::endl; //Output to test the JSON
-                        res.status = 200;
-                        res.set_content(tree.dump(), "application/json"); //API response
-                    }
-                    catch (const std::exception& e) {
-                        res.status = 401;
-                        std::cout << e.what() << std::endl;
-                        std::string query_error = DB_QUERY_ERROR + API_PATH;
-                        res.set_content(query_error, "text/plain"); //Sends back error to Node.js backend
-                    }
+                pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
+                if (!DB_Connection.is_open()) {
+                    res.status = 502;
+                    std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                    res.set_content(BAD_DB_CONNECTION, "text/plain");
+                    return;
                 }
                 else {
+                    std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+                }
+
+                pqxx::nontransaction DB_Open_Connection{ DB_Connection };
+                try {
+                    pqxx::result result = DB_Open_Connection.exec(
+                        pqxx::zview("SELECT * from files WHERE user_id = $1 ORDER BY file_location ASC;"),
+                        user_id_int
+                    );
+
+                    nlohmann::json tree = nlohmann::json::object(); //Creates JSON object
+
+                    for (const auto& row : result) {
+                        std::string file_location = row["file_location"].c_str();
+                        std::string file_name = row["file_name"].c_str();
+                        std::string type = row["file_extension"].c_str(); // "file" or "folder"
+
+                        nlohmann::json* current = &tree; //Sets current equal to the JSON object
+
+                        std::stringstream ss(file_location);
+                        std::string folder;
+
+                        while (std::getline(ss, folder, '/')) { //Creates the JSON structure to be returned
+                            if (folder.empty()) continue;
+
+                            // If the folder doesn't exist yet, create it as an object
+                            if (!current->contains(folder)) {
+                                (*current)[folder] = nlohmann::json::object();
+                            }
+
+                            current = &(*current)[folder];
+                        }
+
+                        //Just assigns the location directly creating the Key Value pair
+                        if (type != "file") {
+                            (*current)[file_name] = file_location;
+                        }
+                    }
+
+                    //std::cout << "JSON Output: " << std::endl << tree.dump(4) << std::endl; //Output to test the JSON
+                    res.status = 200;
+                    res.set_content(tree.dump(), "application/json"); //API response
+                }
+                catch (const std::exception& e) {
                     res.status = 401;
-                    res.set_content(INCORRECT_API_KEY, "text/plain");
+                    std::cout << e.what() << std::endl;
+                    std::string query_error = DB_QUERY_ERROR + API_PATH;
+                    res.set_content(query_error, "text/plain"); //Sends back error to Node.js backend
                 }
             }
             else {
@@ -157,36 +169,37 @@ int main(void)
                 std::string file_id = req.path_params.at("file_id");
                 std::string user_id = req.path_params.at("user_id");
 
-                if (key == API_KEY) { //Checks for matching API keys
-                    
-                    pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
-                    if (!DB_Connection.is_open()) {
-                        std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                        return;
-                    }
-                    else {
-                        std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-                    }
-
-                    pqxx::nontransaction DB_Open_Connection{ DB_Connection };
-                    try {
-                        pqxx::result result = DB_Open_Connection.exec(
-                            pqxx::zview("Query Goes Here;")
-                        );
-
-                        res.status = 200;
-                        res.set_content("{}", "application/json"); //API response
-                    }
-                    catch (const std::exception& e) {
-                        res.status = 401;
-                        std::cout << e.what() << std::endl;
-                        std::string query_error = DB_QUERY_ERROR + API_PATH;
-                        res.set_content(query_error, "text/plain"); //Sends back error to Node.js backend
-                    }
+                if (key != API_KEY) { //Checks for matching API keys
+                    res.status = 401;
+                    std::cout << INCORRECT_API_KEY << API_PATH << std::endl;
+                    res.set_content(INCORRECT_API_KEY, "text/plain");
+                    return;
+                }
+                pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
+                if (!DB_Connection.is_open()) {
+                    res.status = 502;
+                    std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                    res.set_content(BAD_DB_CONNECTION, "text/plain");
+                    return;
                 }
                 else {
+                    std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+                }
+
+                pqxx::nontransaction DB_Open_Connection{ DB_Connection };
+                try {
+                    pqxx::result result = DB_Open_Connection.exec(
+                        pqxx::zview("Query Goes Here;")
+                    );
+
+                    res.status = 200;
+                    res.set_content("{}", "application/json"); //API response
+                }
+                catch (const std::exception& e) {
                     res.status = 401;
-                    res.set_content(INCORRECT_API_KEY, "text/plain");
+                    std::cout << e.what() << std::endl;
+                    std::string query_error = DB_QUERY_ERROR + API_PATH;
+                    res.set_content(query_error, "text/plain"); //Sends back error to Node.js backend
                 }
             }
             else {
@@ -209,36 +222,38 @@ int main(void)
                 std::string file_location = req.path_params.at("file_location");
                 std::string user_id = req.path_params.at("user_id");
 
-                if (key == API_KEY) { //Checks for matching API keys
+                if (key != API_KEY) { //Checks for matching API keys
+                    res.status = 401;
+                    std::cout << INCORRECT_API_KEY << API_PATH << std::endl;
+                    res.set_content(INCORRECT_API_KEY, "text/plain");
+                    return;
+                }
 
-                    pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
-                    if (!DB_Connection.is_open()) {
-                        std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                        return;
-                    }
-                    else {
-                        std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-                    }
-
-                    pqxx::nontransaction DB_Open_Connection{ DB_Connection };
-                    try {
-                        pqxx::result result = DB_Open_Connection.exec(
-                            pqxx::zview("Query Goes Here;")
-                        );
-
-                        res.status = 200;
-                        res.set_content("{}", "application/json"); //API response
-                    }
-                    catch (const std::exception& e) {
-                        res.status = 401;
-                        std::cout << e.what() << std::endl;
-                        std::string query_error = DB_QUERY_ERROR + API_PATH;
-                        res.set_content(query_error, "text/plain"); //Sends back error to Node.js backend
-                    }
+                pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
+                if (!DB_Connection.is_open()) {
+                    res.status = 502;
+                    std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                    res.set_content(BAD_DB_CONNECTION, "text/plain");
+                    return;
                 }
                 else {
+                    std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+                }
+
+                pqxx::nontransaction DB_Open_Connection{ DB_Connection };
+                try {
+                    pqxx::result result = DB_Open_Connection.exec(
+                        pqxx::zview("Query Goes Here;")
+                    );
+
+                    res.status = 200;
+                    res.set_content("{}", "application/json"); //API response
+                }
+                catch (const std::exception& e) {
                     res.status = 401;
-                    res.set_content(INCORRECT_API_KEY, "text/plain");
+                    std::cout << e.what() << std::endl;
+                    std::string query_error = DB_QUERY_ERROR + API_PATH;
+                    res.set_content(query_error, "text/plain"); //Sends back error to Node.js backend
                 }
             }
             else {
@@ -261,35 +276,37 @@ int main(void)
                 std::string new_name = req.path_params.at("new_name");
 
                 if (key == API_KEY) { //Checks for matching API keys
+                    res.status = 401;
+                    std::cout << INCORRECT_API_KEY << API_PATH << std::endl;
+                    res.set_content(INCORRECT_API_KEY, "text/plain");
+                    return;
+                }
 
-                    pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
-                    if (!DB_Connection.is_open()) {
-                        std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                        return;
-                    }
-                    else {
-                        std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-                    }
-
-                    pqxx::nontransaction DB_Open_Connection{ DB_Connection };
-                    try {
-                        pqxx::result result = DB_Open_Connection.exec(
-                            pqxx::zview("Query Goes Here;")
-                        );
-
-                        res.status = 200;
-                        res.set_content("{}", "application/json"); //API response
-                    }
-                    catch (const std::exception& e) {
-                        res.status = 401;
-                        std::cout << e.what() << std::endl;
-                        std::string query_error = DB_QUERY_ERROR + API_PATH;
-                        res.set_content(query_error, "text/plain"); //Sends back error to Node.js backend
-                    }
+                pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
+                if (!DB_Connection.is_open()) {
+                    res.status = 502;
+                    std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                    res.set_content(BAD_DB_CONNECTION, "text/plain");
+                    return;
                 }
                 else {
+                    std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+                }
+
+                pqxx::nontransaction DB_Open_Connection{ DB_Connection };
+                try {
+                    pqxx::result result = DB_Open_Connection.exec(
+                        pqxx::zview("Query Goes Here;")
+                    );
+
+                    res.status = 200;
+                    res.set_content("{}", "application/json"); //API response
+                }
+                catch (const std::exception& e) {
                     res.status = 401;
-                    res.set_content(INCORRECT_API_KEY, "text/plain");
+                    std::cout << e.what() << std::endl;
+                    std::string query_error = DB_QUERY_ERROR + API_PATH;
+                    res.set_content(query_error, "text/plain"); //Sends back error to Node.js backend
                 }
             }
             else {
@@ -309,35 +326,37 @@ int main(void)
                 std::string new_file_location = req.path_params.at("new_file_location");
 
                 if (key == API_KEY) { //Checks for matching API keys
+                    res.status = 401;
+                    std::cout << INCORRECT_API_KEY << API_PATH << std::endl;
+                    res.set_content(INCORRECT_API_KEY, "text/plain");
+                    return;
+                }
 
-                    pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
-                    if (!DB_Connection.is_open()) {
-                        std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                        return;
-                    }
-                    else {
-                        std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-                    }
-
-                    pqxx::nontransaction DB_Open_Connection{ DB_Connection };
-                    try {
-                        pqxx::result result = DB_Open_Connection.exec(
-                            pqxx::zview("Query Goes Here;")
-                        );
-
-                        res.status = 200;
-                        res.set_content("{}", "application/json"); //API response
-                    }
-                    catch (const std::exception& e) {
-                        res.status = 401;
-                        std::cout << e.what() << std::endl;
-                        std::string query_error = DB_QUERY_ERROR + API_PATH;
-                        res.set_content(query_error, "text/plain"); //Sends back error to Node.js backend
-                    }
+                pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
+                if (!DB_Connection.is_open()) {
+                    res.status = 502;
+                    std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                    res.set_content(BAD_DB_CONNECTION, "text/plain");
+                    return;
                 }
                 else {
+                    std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+                }
+
+                pqxx::nontransaction DB_Open_Connection{ DB_Connection };
+                try {
+                    pqxx::result result = DB_Open_Connection.exec(
+                        pqxx::zview("Query Goes Here;")
+                    );
+
+                    res.status = 200;
+                    res.set_content("{}", "application/json"); //API response
+                }
+                catch (const std::exception& e) {
                     res.status = 401;
-                    res.set_content(INCORRECT_API_KEY, "text/plain");
+                    std::cout << e.what() << std::endl;
+                    std::string query_error = DB_QUERY_ERROR + API_PATH;
+                    res.set_content(query_error, "text/plain"); //Sends back error to Node.js backend
                 }
             }
             else {
@@ -359,35 +378,37 @@ int main(void)
                 std::string file_id = req.path_params.at("file_id");
 
                 if (key == API_KEY) { //Checks for matching API keys
+                    res.status = 401;
+                    std::cout << INCORRECT_API_KEY << API_PATH << std::endl;
+                    res.set_content(INCORRECT_API_KEY, "text/plain");
+                    return;
+                }
 
-                    pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
-                    if (!DB_Connection.is_open()) {
-                        std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                        return;
-                    }
-                    else {
-                        std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-                    }
-
-                    pqxx::nontransaction DB_Open_Connection{ DB_Connection };
-                    try {
-                        pqxx::result result = DB_Open_Connection.exec(
-                            pqxx::zview("Query Goes Here;")
-                        );
-
-                        res.status = 200;
-                        res.set_content("{}", "application/json"); //API response
-                    }
-                    catch (const std::exception& e) {
-                        res.status = 401;
-                        std::cout << e.what() << std::endl;
-                        std::string query_error = DB_QUERY_ERROR + API_PATH;
-                        res.set_content(query_error, "text/plain"); //Sends back error to Node.js backend
-                    }
+                pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
+                if (!DB_Connection.is_open()) {
+                    res.status = 502;
+                    std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                    res.set_content(BAD_DB_CONNECTION, "text/plain");
+                    return;
                 }
                 else {
+                    std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+                }
+
+                pqxx::nontransaction DB_Open_Connection{ DB_Connection };
+                try {
+                    pqxx::result result = DB_Open_Connection.exec(
+                        pqxx::zview("Query Goes Here;")
+                    );
+
+                    res.status = 200;
+                    res.set_content("{}", "application/json"); //API response
+                }
+                catch (const std::exception& e) {
                     res.status = 401;
-                    res.set_content(INCORRECT_API_KEY, "text/plain");
+                    std::cout << e.what() << std::endl;
+                    std::string query_error = DB_QUERY_ERROR + API_PATH;
+                    res.set_content(query_error, "text/plain"); //Sends back error to Node.js backend
                 }
             }
             else {
