@@ -31,14 +31,13 @@ app.get("/", async (req, res) => { //The base route
   res.send('API is running (This is the API for the local file upload app');
 });
 
-app.get("/api/login", async (req, res) => { //The route to get the file to download
+app.get("/api/login", async (req, res) => { //The route to login
   try {
     const resposne = await axios.get(`${C_Server_Route}/api/login`, {
       headers: {
         "key": API_KEY
       }
     });
-    res.json(resposne.data);
   } catch (error) {
     console.error("Error downloading file:", error);
     res.status(500).send("Error downloading file");

@@ -74,6 +74,7 @@ CMakeUserPresets.json
 *.ilk
 *.log
 *.vsidx
+*.dll
 
 x64/
 C++_Server_VS/

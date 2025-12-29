@@ -50,6 +50,7 @@ SELECT * FROM server_info; --Retrieving server information--
 
 --Table Joins--
 SELECT * FROM users INNER JOIN files ON users.id = files.user_id; --Retrieving all users with their files--
+SELECT users.id AS user_id, files.file_name, files.file_location, files.file_extension, files.id FROM users INNER JOIN files ON users.id = files.user_id ORDER BY files.file_location ASC; --Retrieving specific file information for all users--
 
 --Conditional Select Queries--
 SELECT * FROM files WHERE user_id = -1; --Retrieving all files of particular user--
@@ -74,3 +75,13 @@ DELETE FROM files WHERE file_location = '/example_path'; --Deleting file by loca
 INSERT INTO users (email, password) VALUES ('test', 'password123'); --Inserting new user--
 INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES (-1, 'example.txt', '/example_path', 1024, '.txt'); --Inserting new file--
 INSERT INTO server_info (server_status, register_key, storage_space_remaining) VALUES (-1, 'regkey123', 1000); --Inserting server information--
+
+
+--Inserting Data Tests--
+INSERT INTO users (email, password) VALUES ('test', 'password123'); --Inserting new user--
+INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES
+(3, 'test1.txt', '/', 10, '.txt'),
+(3, 'test2.txt', '/', 10, '.txt'),
+(3, 'Hello', '/', 10, 'file'),
+(3, 'test1.txt', '/Hello', 10, '.txt'),
+(3, 'test3.txt', '/', 10, '.txt'); --Inserting new file--
