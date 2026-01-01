@@ -41,6 +41,7 @@ const std::string INCORRECT_API_KEY = "Incorrect API Key.";
 const std::string DB_QUERY_ERROR = "An Error Occurred in Querying the Database; API Path ";
 const std::string BAD_PARAMATER = "An Incorrect Parameter was Passed In; API Path ";
 const std::string UNABLE_TO_RENAME = "The System was Unable to Rename This File.";
+const std::string UNABLE_TO_MOVE = "The System was Unable to Move This File.";
 
 //Global String Success
 const std::string GOOD_DB_CONNECTION = "Connected to PostgreSQL Server; API Path ";
@@ -132,6 +133,7 @@ int main(void)
                     user_id_int = std::stoi(user_id);
                 } catch (const std::invalid_argument& e) {
                     std::cout << e.what() << std::endl;
+                    res.status = 400;
                     res.set_content(BAD_PARAMATER, "text/plain");
                     return;
                 }
@@ -315,7 +317,7 @@ int main(void)
 
         // Patch Routes
 
-        svr.Patch("/api/files/name/:file_id/:new_name", [](const httplib::Request& req, httplib::Response& res) { //Renaming a file
+        svr.Patch("/api/files/name/:file_id", [](const httplib::Request& req, httplib::Response& res) { //Renaming a file
             LOG_TIME();
             LOG_CALL();
             if (req.has_header("key")) {
@@ -324,13 +326,12 @@ int main(void)
                 std::string file_id = req.path_params.at("file_id");
                 std::string new_name = req.path_params.at("new_name");
 
-                int tmp = 0; //checks if error is thrown during renaming
-
                 int file_id_int = 0;
                 try {
                     file_id_int = std::stoi(file_id);
                 }
                 catch (const std::invalid_argument& e) {
+                    res.status = 400;
                     std::cout << e.what() << std::endl;
                     res.set_content(BAD_PARAMATER, "text/plain");
                     return;
@@ -366,6 +367,17 @@ int main(void)
 
                     //TO-DO: Check to make sure the file does not already exist by checking the database
 
+                    pqxx::result tmpResult = DB_Open_Connection.exec_params(
+                        "SELECT * from files WHERE file_name = $1;",
+                        new_name);
+                    if (tmpResult.empty()) { //Checks if the new name is a duplicate name
+                        DB_Open_Connection.commit();
+                        res.status = 409;
+                        std::cout << "A File With This Name Already Exists in the Same Folder; API Path " << API_PATH << std::endl;
+                        res.set_content("A File With This Name Already Exists in the Same Folder", "text/plain");
+                        return;
+                    }
+
                     std::string file_location_edit = file_location;
                     if (!file_location_edit.empty() && file_location_edit[0] == '/') {
                         file_location_edit.erase(0, 1);
@@ -378,16 +390,23 @@ int main(void)
                     try {
                         fs::rename(fullPath, newPath);
                     } catch (const std::exception& e) {
-                        tmp = 1;
                         res.status = 500;
                         std::cout << e.what() << std::endl;
                         res.set_content(UNABLE_TO_RENAME, "text/plain"); //Sends back error to Node.js backend
+                        DB_Open_Connection.commit();
+                        return;
                     }
 
-                    if (tmp != 1) { //checks if error was thrown during renaming
+                    try {
                         DB_Open_Connection.exec_params(
                             "UPDATE files SET file_name = $1 WHERE id = $2;",
-                                new_name, file_id_int);
+                            new_name, file_id_int);
+                    }
+                    catch (const std::exception& e) {
+                        res.status = 500;
+                        std::cout << e.what() << std::endl;
+                        res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+                        DB_Open_Connection.commit();
                     }
 
                     DB_Open_Connection.commit();
@@ -408,19 +427,22 @@ int main(void)
             return;
         });
 
-        svr.Patch("/api/files/move/:user_id/:file_id/:new_file_location", [](const httplib::Request& req, httplib::Response& res) { //Moving a file
+        svr.Patch("/api/files/move/:file_id", [](const httplib::Request& req, httplib::Response& res) { //Moving a file
             LOG_TIME();
             LOG_CALL();
             if (req.has_header("key")) {
                 std::string API_PATH = "PATCH: /api/files/move";
                 std::string key = req.get_header_value("key");
                 std::string file_id = req.path_params.at("file_id");
-                std::string new_file_location = req.path_params.at("new_file_location");
 
-                if (key != API_KEY) { //Checks for matching API keys
-                    res.status = 401;
-                    std::cout << INCORRECT_API_KEY << API_PATH << std::endl;
-                    res.set_content(INCORRECT_API_KEY, "text/plain");
+                int file_id_int = 0;
+                try {
+                    file_id_int = std::stoi(file_id);
+                }
+                catch (const std::invalid_argument& e) {
+                    res.status = 400;
+                    std::cout << e.what() << std::endl;
+                    res.set_content(BAD_PARAMATER, "text/plain");
                     return;
                 }
 
@@ -435,20 +457,107 @@ int main(void)
                     std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
                 }
 
-                pqxx::nontransaction DB_Open_Connection{ DB_Connection };
-                try {
-                    pqxx::result result = DB_Open_Connection.exec(
-                        pqxx::zview("Query Goes Here;")
-                    );
+                pqxx::work DB_Open_Connection{ DB_Connection };
+                pqxx::result result;
 
-                    res.status = 200;
-                    res.set_content("{}", "application/json"); //API response
+                try {
+                    result = DB_Open_Connection.exec_params(
+                        "SELECT * FROM files WHERE id = $1;",
+                        file_id_int);
                 }
                 catch (const std::exception& e) {
                     res.status = 500;
                     std::cout << e.what() << std::endl;
                     res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+                    DB_Open_Connection.commit();
+                    return;
                 }
+
+                std::string file_location = result[0]["file_location"].c_str();
+                std::string file_name = result[0]["file_name"].c_str();
+
+                // Parse JSON body
+                nlohmann::json body;
+                try {
+                    body = nlohmann::json::parse(req.body);
+                }
+                catch (const std::exception& e) {
+                    res.status = 400;
+                    std::cout << e.what() << std::endl;
+                    res.set_content("Invalid JSON body", "text/plain");
+                    return;
+                }
+
+                if (!body.contains("new_location")) {
+                    res.status = 400;
+                    res.set_content("Missing new_location", "text/plain");
+                    return;
+                }
+
+                std::string new_file_location = body["new_location"].get<std::string>();
+
+                if (key != API_KEY) { //Checks for matching API keys
+                    res.status = 401;
+                    std::cout << INCORRECT_API_KEY << API_PATH << std::endl;
+                    res.set_content(INCORRECT_API_KEY, "text/plain");
+                    return;
+                }
+
+                std::filesystem::path basePath(FILE_LOCATION);
+
+                std::string file_location_edit_new = new_file_location;
+                if (!file_location_edit_new.empty() && file_location_edit_new[0] == '/') {
+                    file_location_edit_new.erase(0, 1);
+                }
+
+                std::string file_location_edit = file_location;
+                if (!file_location_edit.empty() && file_location_edit[0] == '/') {
+                    file_location_edit.erase(0, 1);
+                }
+
+                // Build paths
+                std::filesystem::path oldPath = basePath / file_location_edit / file_name;
+                std::filesystem::path newPath = basePath / file_location_edit_new / file_name;
+
+                newPath = std::filesystem::absolute(newPath);
+                oldPath = std::filesystem::absolute(oldPath);
+                
+                // Test statements
+                if (!std::filesystem::exists(oldPath)) {
+                    std::cout << "Old file does NOT exist!\n";
+                }
+                if (!std::filesystem::exists(newPath.parent_path())) {
+                    std::cout << "Target directory does NOT exist!\n";
+                }
+
+                try {
+                    std::filesystem::rename(oldPath, newPath);
+                }
+                catch (const std::exception& e) {
+                    res.status = 500;
+                    std::cout << e.what() << std::endl;
+                    res.set_content(UNABLE_TO_MOVE, "text/plain"); //Sends back error to Node.js backend
+                    return;
+                }
+
+                try {
+                    pqxx::result result = DB_Open_Connection.exec_params(
+                        "UPDATE files SET file_location = $1 WHERE id = $2;",
+                            new_file_location,
+                            file_id_int);
+                }
+                catch (const std::exception& e) {
+                    res.status = 500;
+                    std::cout << e.what() << std::endl;
+                    res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+                    DB_Open_Connection.commit();
+                    return;
+                }
+
+                res.status = 200;
+                res.set_content("File Successfully Moved", "text/plain"); //API response
+
+                DB_Open_Connection.commit();
             }
             else {
                 res.status = 400;
@@ -518,7 +627,7 @@ int main(void)
         });
 
     } catch (const std::exception& e) {
-        std::cerr << e.what() << std::endl;
+        std::cout << e.what() << std::endl;
         return 1;
     }
 
@@ -526,5 +635,6 @@ int main(void)
     std::cout << std::endl << std::endl << currTime << "Server listening on port " << PORT << " ...\n";
     svr.listen("localhost", PORT);
 
+    //std::cout << std::endl << std::endl << "The amount of API calls made to valid endpoints are: " << api_traffic_count << std::endl;
     return api_traffic_count; //Returns how many API calls were made to valid endpoints while the server was open
 }
