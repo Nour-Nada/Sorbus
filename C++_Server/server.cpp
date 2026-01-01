@@ -22,6 +22,7 @@
 //Namespaces
 namespace fs = std::filesystem;
 
+
 #define PORT 8080 //Server Port
 
 // HTTP
@@ -42,6 +43,8 @@ const std::string DB_QUERY_ERROR = "An Error Occurred in Querying the Database; 
 const std::string BAD_PARAMATER = "An Incorrect Parameter was Passed In; API Path ";
 const std::string UNABLE_TO_RENAME = "The System was Unable to Rename This File.";
 const std::string UNABLE_TO_MOVE = "The System was Unable to Move This File.";
+const std::string UNABLE_TO_DELETE = "The System was Unable to Delete This File.";
+const std::string UNFOUND_FILE_PATH = "The System was Unable to Find This File Path; API Path ";
 
 //Global String Success
 const std::string GOOD_DB_CONNECTION = "Connected to PostgreSQL Server; API Path ";
@@ -383,9 +386,9 @@ int main(void)
                         file_location_edit.erase(0, 1);
                     }
 
-                    std::filesystem::path basePath(FILE_LOCATION);
-                    std::filesystem::path fullPath = (basePath / file_location_edit / file_name);
-                    std::filesystem::path newPath = (basePath / file_location_edit / new_name);
+                    fs::path basePath(FILE_LOCATION);
+                    fs::path fullPath = (basePath / file_location_edit / file_name);
+                    fs::path newPath = (basePath / file_location_edit / new_name);
 
                     try {
                         fs::rename(fullPath, newPath);
@@ -503,7 +506,7 @@ int main(void)
                     return;
                 }
 
-                std::filesystem::path basePath(FILE_LOCATION);
+                fs::path basePath(FILE_LOCATION);
 
                 std::string file_location_edit_new = new_file_location;
                 if (!file_location_edit_new.empty() && file_location_edit_new[0] == '/') {
@@ -516,22 +519,14 @@ int main(void)
                 }
 
                 // Build paths
-                std::filesystem::path oldPath = basePath / file_location_edit / file_name;
-                std::filesystem::path newPath = basePath / file_location_edit_new / file_name;
+                fs::path oldPath = basePath / file_location_edit / file_name;
+                fs::path newPath = basePath / file_location_edit_new / file_name;
 
-                newPath = std::filesystem::absolute(newPath);
-                oldPath = std::filesystem::absolute(oldPath);
-                
-                // Test statements
-                if (!std::filesystem::exists(oldPath)) {
-                    std::cout << "Old file does NOT exist!\n";
-                }
-                if (!std::filesystem::exists(newPath.parent_path())) {
-                    std::cout << "Target directory does NOT exist!\n";
-                }
+                newPath = fs::absolute(newPath);
+                oldPath = fs::absolute(oldPath);
 
                 try {
-                    std::filesystem::rename(oldPath, newPath);
+                    fs::rename(oldPath, newPath);
                 }
                 catch (const std::exception& e) {
                     res.status = 500;
@@ -577,6 +572,17 @@ int main(void)
                 std::string key = req.get_header_value("key");
                 std::string file_id = req.path_params.at("file_id");
 
+                int file_id_int = 0;
+                try {
+                    file_id_int = std::stoi(file_id);
+                }
+                catch (const std::invalid_argument& e) {
+                    res.status = 400;
+                    std::cout << e.what() << std::endl;
+                    res.set_content(BAD_PARAMATER, "text/plain");
+                    return;
+                }
+
                 if (key != API_KEY) { //Checks for matching API keys
                     res.status = 401;
                     std::cout << INCORRECT_API_KEY << API_PATH << std::endl;
@@ -595,20 +601,76 @@ int main(void)
                     std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
                 }
 
-                pqxx::nontransaction DB_Open_Connection{ DB_Connection };
-                try {
-                    pqxx::result result = DB_Open_Connection.exec(
-                        pqxx::zview("Query Goes Here;")
-                    );
+                pqxx::work DB_Open_Connection{ DB_Connection };
 
-                    res.status = 200;
-                    res.set_content("{}", "application/json"); //API response
+                pqxx::result result;
+
+                try {
+                    result = DB_Open_Connection.exec_params(
+                        "SELECT * FROM files WHERE id = $1;",
+                        file_id_int);
                 }
                 catch (const std::exception& e) {
                     res.status = 500;
                     std::cout << e.what() << std::endl;
                     res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+                    DB_Open_Connection.commit();
+                    return;
                 }
+
+                std::string file_location = result[0]["file_location"].c_str();
+                std::string file_name = result[0]["file_name"].c_str();
+
+                fs::path basePath(FILE_LOCATION);
+
+                // Build paths
+                std::string file_location_edit = file_location;
+                if (!file_location_edit.empty() && file_location_edit[0] == '/') {
+                    file_location_edit.erase(0, 1);
+                }
+
+                fs::path deletePath = basePath / file_location_edit / file_name;
+
+                deletePath = fs::absolute(deletePath);
+
+                try {
+                    if (fs::exists(deletePath)) { //The reason that this action has a checked but not preovus actions is because deleting a file with an unkown path could cause uninted things therefore it is just better to check it
+                        fs::remove(deletePath);
+                    }
+                    else {
+                        res.status = 500;
+                        std::cout << UNFOUND_FILE_PATH << API_PATH << std::endl;
+                        res.set_content(UNFOUND_FILE_PATH, "text/plain");
+                        DB_Open_Connection.commit();
+                        return;
+                    }
+                }
+                catch (const std::exception& e) {
+                    res.status = 500;
+                    std::cout << e.what() << std::endl;
+                    res.set_content(UNABLE_TO_DELETE, "text/plain"); //Sends back error to Node.js backend
+                    DB_Open_Connection.commit();
+                    return;
+                }
+
+                try {
+                    pqxx::result result = DB_Open_Connection.exec_params(
+                        "DELETE FROM files WHERE id = $1;",
+                        file_id_int
+                    );
+                }
+                catch (const std::exception& e) {
+                    res.status = 500;
+                    std::cout << e.what() << std::endl;
+                    res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+                    DB_Open_Connection.commit();
+                    return;
+                }
+
+                res.status = 200;
+                res.set_content("File Successfully Deleted", "text/plain"); //API response
+
+                DB_Open_Connection.commit();
             }
             else {
                 res.status = 400;
