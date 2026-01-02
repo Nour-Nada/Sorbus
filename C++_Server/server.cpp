@@ -45,6 +45,7 @@ const std::string UNABLE_TO_RENAME = "The System was Unable to Rename This File.
 const std::string UNABLE_TO_MOVE = "The System was Unable to Move This File.";
 const std::string UNABLE_TO_DELETE = "The System was Unable to Delete This File.";
 const std::string UNFOUND_FILE_PATH = "The System was Unable to Find This File Path; API Path ";
+const std::string UNABLE_TO_CREATE_FOLDER = "The System was Unable to Create a Folder.";
 
 //Global String Success
 const std::string GOOD_DB_CONNECTION = "Connected to PostgreSQL Server; API Path ";
@@ -247,15 +248,16 @@ int main(void)
                     pqxx::result result = DB_Open_Connection.exec(
                         pqxx::zview("Query Goes Here;")
                     );
-
-                    res.status = 200;
-                    res.set_content("{}", "application/json"); //API response
                 }
                 catch (const std::exception& e) {
                     res.status = 500;
                     std::cout << e.what() << std::endl;
                     res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+                    return;
                 }
+
+                res.status = 200;
+                res.set_content("{}", "application/json"); //API response
             }
             else {
                 res.status = 400;
@@ -268,7 +270,7 @@ int main(void)
         // Post Routes
 
         //TO-DO: Implement uploading file logic
-        svr.Post("/api/files/upload/:user_id/:file_location", [](const httplib::Request& req, httplib::Response& res) { //Uploading a file a file
+        svr.Post("/api/files/upload/:user_id/:file_location", [](const httplib::Request& req, httplib::Response& res) { //Uploading a file
             LOG_TIME();
             LOG_CALL();
             if (req.has_header("key")) {
@@ -300,9 +302,131 @@ int main(void)
                     pqxx::result result = DB_Open_Connection.exec(
                         pqxx::zview("Query Goes Here;")
                     );
+                }
+                catch (const std::exception& e) {
+                    res.status = 500;
+                    std::cout << e.what() << std::endl;
+                    res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+                    return;
+                }
+
+                res.status = 200;
+                res.set_content("{}", "application/json"); //API response
+            }
+            else {
+                res.status = 400;
+                res.set_content(NO_HEADER, "text/plain");
+            }
+            return;
+        });
+
+        svr.Post("/api/files/create/:user_id", [](const httplib::Request& req, httplib::Response& res) { //Creating an empty folder
+            LOG_TIME();
+            LOG_CALL();
+            if (req.has_header("key")) {
+                std::string API_PATH = "POST: /api/files/create";
+                std::string key = req.get_header_value("key");
+                std::string user_id = req.path_params.at("user_id");
+
+                int user_id_int = 0;
+                try {
+                    user_id_int = std::stoi(user_id);
+                }
+                catch (const std::invalid_argument& e) {
+                    res.status = 400;
+                    std::cout << e.what() << std::endl;
+                    res.set_content(BAD_PARAMATER, "text/plain");
+                    return;
+                }
+
+                if (key != API_KEY) { //Checks for matching API keys
+                    res.status = 401;
+                    std::cout << INCORRECT_API_KEY << API_PATH << std::endl;
+                    res.set_content(INCORRECT_API_KEY, "text/plain");
+                    return;
+                }
+
+                pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
+                if (!DB_Connection.is_open()) {
+                    res.status = 502;
+                    std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                    res.set_content(BAD_DB_CONNECTION, "text/plain");
+                    return;
+                }
+                else {
+                    std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+                }
+
+                nlohmann::json body;
+                try {
+                    body = nlohmann::json::parse(req.body);
+                }
+                catch (const std::exception& e) {
+                    res.status = 400;
+                    std::cout << e.what() << std::endl;
+                    res.set_content("Invalid JSON body", "text/plain");
+                    return;
+                }
+
+                if (!body.contains("new_name")) {
+                    res.status = 400;
+                    res.set_content("Missing New Name in Body", "text/plain");
+                    return;
+                }
+                if (!body.contains("folder_path")) {
+                    res.status = 400;
+                    res.set_content("Missing Folder Path in Body", "text/plain");
+                    return;
+                }
+
+                std::string new_name = body["new_name"].get<std::string>();
+                std::string folder_path = body["folder_path"].get<std::string>();
+
+                pqxx::work DB_Open_Connection{ DB_Connection };
+                try {
+                    pqxx::result tmpResult = DB_Open_Connection.exec_params(
+                        "SELECT * from files WHERE file_name = $1;",
+                        new_name);
+                    if (!tmpResult.empty()) { //Checks if the new name is a duplicate name
+                        DB_Open_Connection.commit();
+                        res.status = 409;
+                        std::cout << "A File With This Name Already Exists in the Same Folder; API Path " << API_PATH << std::endl;
+                        res.set_content("A File With This Name Already Exists in the Same Folder", "text/plain");
+                        return;
+                    }
+
+                    fs::path basePath(FILE_LOCATION);
+
+                    std::string folder_path_edit = folder_path;
+                    if (!folder_path.empty() &&
+                        (folder_path[0] == '/' || folder_path[0] == '\\')) {
+                        folder_path_edit.erase(0, 1);
+                    }
+
+                    fs::path newPath = basePath / folder_path_edit / new_name;
+
+                    newPath = fs::absolute(newPath);
+
+                    try {
+                        fs::create_directory(newPath);
+                    }
+                    catch (const std::exception& e) {
+                        res.status = 500;
+                        std::cout << e.what() << std::endl;
+                        res.set_content(UNABLE_TO_CREATE_FOLDER, "text/plain"); //Sends back error to Node.js backend
+                        return;
+                    }
+
+
+                    pqxx::result result = DB_Open_Connection.exec_params(
+                        "INSERT INTO files (user_id, file_name, file_location, file_extension, file_size) VALUES ($1, $2, $3, $4, $5);",
+                        user_id_int, new_name, folder_path, "folder", -1
+                    );
+
+                    DB_Open_Connection.commit();
 
                     res.status = 200;
-                    res.set_content("{}", "application/json"); //API response
+                    res.set_content("Folder Successfully Created", "text/plain"); //API response
                 }
                 catch (const std::exception& e) {
                     res.status = 500;
@@ -373,7 +497,7 @@ int main(void)
                     pqxx::result tmpResult = DB_Open_Connection.exec_params(
                         "SELECT * from files WHERE file_name = $1;",
                         new_name);
-                    if (tmpResult.empty()) { //Checks if the new name is a duplicate name
+                    if (!tmpResult.empty()) { //Checks if the new name is a duplicate name
                         DB_Open_Connection.commit();
                         res.status = 409;
                         std::cout << "A File With This Name Already Exists in the Same Folder; API Path " << API_PATH << std::endl;
@@ -438,6 +562,13 @@ int main(void)
                 std::string key = req.get_header_value("key");
                 std::string file_id = req.path_params.at("file_id");
 
+                if (key != API_KEY) { //Checks for matching API keys
+                    res.status = 401;
+                    std::cout << INCORRECT_API_KEY << API_PATH << std::endl;
+                    res.set_content(INCORRECT_API_KEY, "text/plain");
+                    return;
+                }
+
                 int file_id_int = 0;
                 try {
                     file_id_int = std::stoi(file_id);
@@ -493,18 +624,11 @@ int main(void)
 
                 if (!body.contains("new_location")) {
                     res.status = 400;
-                    res.set_content("Missing new_location", "text/plain");
+                    res.set_content("Missing New Location in Body", "text/plain");
                     return;
                 }
 
                 std::string new_file_location = body["new_location"].get<std::string>();
-
-                if (key != API_KEY) { //Checks for matching API keys
-                    res.status = 401;
-                    std::cout << INCORRECT_API_KEY << API_PATH << std::endl;
-                    res.set_content(INCORRECT_API_KEY, "text/plain");
-                    return;
-                }
 
                 fs::path basePath(FILE_LOCATION);
 
