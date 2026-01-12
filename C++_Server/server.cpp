@@ -36,18 +36,18 @@ std::string FILE_LOCATION = "C:/Users/nour2/Videos/Test"; //The location of the 
 int api_traffic_count = 0; //Counts how many API calls are made to valid endpoints while the server is still open
 
 //Global String Errors
-const std::string BAD_DB_CONNECTION = "Cannot Connect to Database; API Path ";
+const std::string BAD_DB_CONNECTION = "Cannot Connect to Database;";
 const std::string NO_HEADER = "There is no Header Attached with this Request.";
 const std::string INCORRECT_API_KEY = "Incorrect API Key.";
-const std::string DB_QUERY_ERROR = "An Error Occurred in Querying the Database; API Path ";
-const std::string BAD_PARAMATER = "An Incorrect Parameter was Passed In; API Path ";
-const std::string UNABLE_TO_RENAME = "The System was Unable to Rename This File.";
-const std::string UNABLE_TO_MOVE = "The System was Unable to Move This File.";
-const std::string UNABLE_TO_DELETE = "The System was Unable to Delete This File.";
-const std::string UNFOUND_FILE_PATH = "The System was Unable to Find This File Path; API Path ";
-const std::string UNABLE_TO_CREATE_FOLDER = "The System was Unable to Create a Folder.";
-const std::string UNOPEN_FILE = "The File Was Not Opened; API Path ";
-const std::string UNABLE_TO_UPLOAD_FILE = "The File Was Not Uploaded";
+const std::string DB_QUERY_ERROR = "An Error Occurred in Querying the Database;";
+const std::string BAD_PARAMATER = "An Incorrect Parameter was Passed In;";
+const std::string UNABLE_TO_RENAME = "The System was Unable to Rename This File;";
+const std::string UNABLE_TO_MOVE = "The System was Unable to Move This File;";
+const std::string UNABLE_TO_DELETE = "The System was Unable to Delete This File;";
+const std::string UNFOUND_FILE_PATH = "The System was Unable to Find This File Path;";
+const std::string UNABLE_TO_CREATE_FOLDER = "The System was Unable to Create a Folder;";
+const std::string UNOPEN_FILE = "The File Was Not Opened;";
+const std::string UNABLE_TO_UPLOAD_FILE = "The File Was Not Uploaded;";
 
 //Global String Success
 const std::string GOOD_DB_CONNECTION = "Connected to PostgreSQL Server; API Path ";
@@ -314,57 +314,100 @@ int main(void)
 
         // Post Routes
 
-        //TO-DO: Implement uploading file logic
-        svr.Post("/api/files/upload/:user_id/:file_location", [](const httplib::Request& req, httplib::Response& res) { //Uploading a file
+        //TO-DO: add logic for folders
+        svr.Post("/api/files/upload/:user_id", [](const httplib::Request& req, httplib::Response& res, const httplib::ContentReader& content_reader) { //Uploading a file
             LOG_CALL();
             std::string API_PATH = "POST: /api/files/upload";
             std::string key = req.get_header_value("key");
-            std::string file_location = req.path_params.at("file_location");
             std::string user_id = req.path_params.at("user_id");
+            std::string file_name;
+            std::string file_location;
 
-            nlohmann::json body;
+            int user_id_int = 0;
             try {
-                body = nlohmann::json::parse(req.body);
+                user_id_int = std::stoi(user_id);
             }
-            catch (const std::exception& e) {
+            catch (const std::invalid_argument& e) {
                 res.status = 400;
                 std::cout << e.what() << std::endl;
-                res.set_content("Invalid JSON body", "text/plain");
+                res.set_content(BAD_PARAMATER, "text/plain");
                 return;
             }
 
-            if (!body.contains("file_name")) {
+            if (req.has_header("file_name") && req.has_header("file_location")) {
+                file_name = req.get_header_value("file_name");
+                file_location = req.get_header_value("file_location");
+            }
+            else {
                 res.status = 400;
-                std::cout << UNABLE_TO_UPLOAD_FILE << std::endl;
-                res.set_content(UNABLE_TO_UPLOAD_FILE, "text/plain");
+                res.set_content(NO_HEADER, "text/plain");
                 return;
             }
 
-            std::string file_name = body["file_name"].get<std::string>();
 
             if (file_location == "/") {
                 file_location = "";
             }
+            std::string file_path_check = FILE_LOCATION + file_location;
             std::string file_path = FILE_LOCATION + file_location + "/" + file_name;
-            if (std::filesystem::exists(file_path)) {
+            if (!std::filesystem::exists(file_path_check)) {
                 res.status = 409;
                 std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
                 res.set_content(BAD_DB_CONNECTION, "text/plain");
                 return;
             }
-            auto file = std::make_shared<std::ofstream>(file_path, std::ios::binary);
-            if (!file->is_open()) {
+            if (std::filesystem::exists(file_path)) { //checks if the file already exists
+                res.status = 409;
+                std::cout << UNABLE_TO_UPLOAD_FILE << API_PATH << std::endl;
+                res.set_content(UNABLE_TO_UPLOAD_FILE, "text/plain");
+                return;
+            }
+            std::ofstream out_file(file_path, std::ios::binary);
+            if (!out_file.is_open()) {
                 res.status = 500;
                 return;
             }
 
-            // Stream incoming bytes directly to disk
-            //req.body_reader = [file](
-            //    [&](const char* data, size_t data_length) {
-            //        file->write(data, data_length);
-            //        return file->good();
-            //    }
-            //);
+            // Stream incoming data directly to disk
+            bool write_success = true;
+            size_t total_bytes = 0;
+
+            content_reader([&](const char* data, size_t data_length) {
+                if (write_success) {
+                    out_file.write(data, data_length);
+                    if (out_file.good()) {
+                        total_bytes += data_length;
+                        return true; // Continue reading
+                    }
+                    else {
+                        write_success = false;
+                        std::cout << "Failed to write data to file" << std::endl;
+                        return false; // Stop reading
+                    }
+                }
+                return false;
+            });
+
+            out_file.close();
+
+            // Check if streaming was successful
+            if (!write_success) {
+                res.status = 500;
+                std::cout << "File write failed after " << total_bytes << " bytes" << std::endl;
+                res.set_content("Failed to Write File", "text/plain");
+                std::filesystem::remove(file_path); // Clean up partial file
+                return;
+            }
+
+            std::cout << "Successfully wrote " << total_bytes << " bytes to " << file_path << std::endl;
+
+            auto get_file_extension = [](const std::string& file_name) -> std::string {
+                size_t dot_pos = file_name.find_last_of('.');
+                if (dot_pos == std::string::npos || dot_pos == file_name.length() - 1) {
+                    return "";
+                }
+                return file_name.substr(dot_pos + 1);
+            };
 
             pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
             if (!DB_Connection.is_open()) {
@@ -380,7 +423,8 @@ int main(void)
             pqxx::work DB_Open_Connection{ DB_Connection };
             try {
                 pqxx::result result = DB_Open_Connection.exec(
-                    pqxx::zview("Query Goes Here;")
+                    pqxx::zview("INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES ($1, $2, $3, $4, '.txt');",
+                        user_id_int, file_name, file_location, total_bytes, get_file_extension)
                 );
             }
             catch (const std::exception& e) {
@@ -391,7 +435,7 @@ int main(void)
             }
 
             res.status = 200;
-            res.set_content("{}", "application/json"); //API response
+            res.set_content("File Succesffuly Uploaded", "text/plain"); //API response
             return;
         });
 
