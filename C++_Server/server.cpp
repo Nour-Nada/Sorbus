@@ -13,8 +13,9 @@
 #include <pqxx/pqxx>
 
 //Downloaded one file headers
-#include "httplib.h"
-#include "json.hpp"
+#include "header_libs/httplib.h"
+#include "header_libs/json.hpp"
+#include "header_libs/miniz/miniz.h"
 
 //Created headers
 #include "server_functions.h"
@@ -273,6 +274,60 @@ int main(void)
             if (file_location == "/") {
                 file_location = "";
             }
+
+            if (type == "folder") {
+                
+                fs::path temp_zip_path = fs::temp_directory_path() / (file_name + ".zip");
+                fs::path folder_path = FILE_LOCATION + file_location + "/" + file_name;
+
+                file_name = file_name + ".zip";
+
+                mz_zip_archive zip;
+                std::memset(&zip, 0, sizeof(zip));
+
+                if (!mz_zip_writer_init_file(&zip, temp_zip_path.string().c_str(), 0)) {
+                    res.status = 500;
+                    res.set_content("Failed to create zip", "text/plain");
+                    return;
+                }
+
+                try {
+                    for (fs::recursive_directory_iterator entry(folder_path); entry != fs::recursive_directory_iterator(); ++entry) {
+                        if (!fs::is_regular_file(entry->path())) continue;
+
+                        fs::path relative_path = fs::relative(entry->path(), folder_path);
+
+                        if (!mz_zip_writer_add_file(&zip,
+                            relative_path.string().c_str(),   // path inside zip
+                            entry->path().string().c_str(),   // source file path
+                            nullptr,
+                            0,
+                            MZ_BEST_COMPRESSION)) {
+                            mz_zip_writer_end(&zip);
+                            res.status = 500;
+                            res.set_content("Failed to add file to zip", "text/plain");
+                            return;
+                        }
+                    }
+                }
+                catch (...) {
+                    mz_zip_writer_end(&zip);
+                    res.status = 500;
+                    res.set_content("Exception During Zip Creation", "text/plain");
+                    return;
+                }
+
+                if (!mz_zip_writer_finalize_archive(&zip)) {
+                    mz_zip_writer_end(&zip);
+                    res.status = 500;
+                    res.set_content("Failed To Finalize Zip", "text/plain");
+                    return;
+                }
+
+                mz_zip_writer_end(&zip);
+
+            }
+
             std::string file_path = FILE_LOCATION + file_location + "/" + file_name;
             auto file = std::make_shared<std::ifstream>(file_path, std::ios::binary);
 
@@ -284,7 +339,7 @@ int main(void)
             }
             res.set_header("Content-Type", "application/octet-stream");
             res.set_header("Content-Disposition",
-                "attachment; filename=\"" + std::filesystem::path(file_path).filename().string() + "\"");
+                "attachment; filename=\"" + fs::path(file_path).filename().string() + "\"");
 
             res.set_chunked_content_provider(
                 "application/octet-stream",
@@ -308,13 +363,20 @@ int main(void)
                     return true; // always return true
                 }
             );
+
+            //delete zip file
+            /*if (type == "folder" && fs::exists(file_path)) {
+                fs::remove(file_path);
+            }*/
+
+            res.status = 200;
             return;
         });
 
 
         // Post Routes
 
-        //TO-DO: add logic for folders
+        
         svr.Post("/api/files/upload/:user_id", [](const httplib::Request& req, httplib::Response& res, const httplib::ContentReader& content_reader) { //Uploading a file
             LOG_CALL();
             std::string API_PATH = "POST: /api/files/upload";
@@ -408,6 +470,7 @@ int main(void)
                 }
                 return file_name.substr(dot_pos + 1);
             };
+            std::string extension = get_file_extension(file_name);
 
             pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
             if (!DB_Connection.is_open()) {
@@ -422,9 +485,9 @@ int main(void)
 
             pqxx::work DB_Open_Connection{ DB_Connection };
             try {
-                pqxx::result result = DB_Open_Connection.exec(
-                    pqxx::zview("INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES ($1, $2, $3, $4, '.txt');",
-                        user_id_int, file_name, file_location, total_bytes, get_file_extension)
+                pqxx::result result = DB_Open_Connection.exec_params(
+                    "INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES ($1, $2, $3, $4, '.txt');",
+                        user_id_int, file_name, file_location, total_bytes, extension
                 );
             }
             catch (const std::exception& e) {
@@ -435,7 +498,7 @@ int main(void)
             }
 
             res.status = 200;
-            res.set_content("File Succesffuly Uploaded", "text/plain"); //API response
+            res.set_content("File Successfully Uploaded", "text/plain"); //API response
             return;
         });
 
