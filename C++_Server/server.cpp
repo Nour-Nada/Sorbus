@@ -218,8 +218,7 @@ int main(void)
             return;
         });
 
-        //TO-DO: add logic for folders
-        svr.Get("/api/files/download/:file_id", [](const httplib::Request& req, httplib::Response& res) { //Downloading a file
+        svr.Get("/api/files/download/:file_id", [](const httplib::Request& req, httplib::Response& res) { //Downloading a file or folder
             LOG_CALL();
             std::string API_PATH = "GET: /api/files/download";
             std::string key = req.get_header_value("key");
@@ -275,16 +274,20 @@ int main(void)
                 file_location = "";
             }
 
+            std::string file_path = FILE_LOCATION + file_location + "/" + file_name;
+
             if (type == "folder") {
-                
-                fs::path temp_zip_path = fs::temp_directory_path() / (file_name + ".zip");
-                fs::path folder_path = FILE_LOCATION + file_location + "/" + file_name;
 
-                file_name = file_name + ".zip";
+                fs::path folder_path = file_path;
 
-                mz_zip_archive zip;
-                std::memset(&zip, 0, sizeof(zip));
+                std::string zip_name = file_name + ".zip";
+                fs::path temp_zip_path = fs::temp_directory_path() / zip_name;
 
+                // overwrite so file_path later points to the zip
+                file_location = "";          // ignore FILE_LOCATION
+                file_name = temp_zip_path.string(); // absolute path
+
+                mz_zip_archive zip{};
                 if (!mz_zip_writer_init_file(&zip, temp_zip_path.string().c_str(), 0)) {
                     res.status = 500;
                     res.set_content("Failed to create zip", "text/plain");
@@ -292,17 +295,19 @@ int main(void)
                 }
 
                 try {
-                    for (fs::recursive_directory_iterator entry(folder_path); entry != fs::recursive_directory_iterator(); ++entry) {
-                        if (!fs::is_regular_file(entry->path())) continue;
+                    for (fs::recursive_directory_iterator it(folder_path);
+                        it != fs::recursive_directory_iterator(); ++it) {
 
-                        fs::path relative_path = fs::relative(entry->path(), folder_path);
+                        if (!fs::is_regular_file(it->path())) continue;
 
-                        if (!mz_zip_writer_add_file(&zip,
-                            relative_path.string().c_str(),   // path inside zip
-                            entry->path().string().c_str(),   // source file path
-                            nullptr,
-                            0,
-                            MZ_BEST_COMPRESSION)) {
+                        fs::path rel = fs::relative(it->path(), folder_path);
+
+                        if (!mz_zip_writer_add_file(
+                            &zip,
+                            rel.string().c_str(),
+                            it->path().string().c_str(),
+                            nullptr, 0, MZ_BEST_COMPRESSION)) {
+
                             mz_zip_writer_end(&zip);
                             res.status = 500;
                             res.set_content("Failed to add file to zip", "text/plain");
@@ -313,22 +318,24 @@ int main(void)
                 catch (...) {
                     mz_zip_writer_end(&zip);
                     res.status = 500;
-                    res.set_content("Exception During Zip Creation", "text/plain");
+                    res.set_content("Exception during zip creation", "text/plain");
                     return;
                 }
 
                 if (!mz_zip_writer_finalize_archive(&zip)) {
                     mz_zip_writer_end(&zip);
                     res.status = 500;
-                    res.set_content("Failed To Finalize Zip", "text/plain");
+                    res.set_content("Failed to finalize zip", "text/plain");
                     return;
                 }
 
                 mz_zip_writer_end(&zip);
 
+                file_path = file_name;
             }
 
-            std::string file_path = FILE_LOCATION + file_location + "/" + file_name;
+
+
             auto file = std::make_shared<std::ifstream>(file_path, std::ios::binary);
 
             if (!file->is_open()) {
