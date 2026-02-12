@@ -101,10 +101,10 @@ int main(void)
 
     try {
 
-        // Get Routes
+        // Auth Routes
 
-        //TO-DO: Add login code
-        svr.Get("/api/login", [&](const httplib::Request& req, httplib::Response& res) { //Logging in a user
+        //TO-DO: Add login and signup functionality
+        svr.Post("/api/login", [&](const httplib::Request& req, httplib::Response& res) { //Logging in a user
             LOG_CALL();
                 std::string API_PATH = "GET: /api/login";
                 std::string key = req.get_header_value("key");
@@ -139,6 +139,45 @@ int main(void)
 
             return;
         });
+
+        svr.Post("/api/signup", [&](const httplib::Request& req, httplib::Response& res) { //Logging in a user
+            LOG_CALL();
+            std::string API_PATH = "GET: /api/login";
+            std::string key = req.get_header_value("key");
+
+            pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
+            if (!DB_Connection.is_open()) {
+                res.status = 502;
+                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                res.set_content(BAD_DB_CONNECTION, "text/plain");
+                return;
+            }
+            else {
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+            }
+
+            pqxx::nontransaction DB_Open_Connection{ DB_Connection };
+            try {
+                pqxx::result result = DB_Open_Connection.exec(
+                    pqxx::zview("Query Goes Here;")
+                );
+
+                //Code goes here
+
+                res.status = 200;
+                res.set_content("{}", "application/json"); //API response
+            }
+            catch (const std::exception& e) {
+                res.status = 500;
+                std::cout << e.what() << std::endl;
+                res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+            }
+
+            return;
+            });
+
+
+        // Get Routes
 
         svr.Get("/api/files/name/:user_id", [&](const httplib::Request& req, httplib::Response& res) { //Retrieving file names
             LOG_CALL();
@@ -382,7 +421,6 @@ int main(void)
 
 
         // Post Routes
-
         
         svr.Post("/api/files/upload/:user_id", [](const httplib::Request& req, httplib::Response& res, const httplib::ContentReader& content_reader) { //Uploading a file
             LOG_CALL();
