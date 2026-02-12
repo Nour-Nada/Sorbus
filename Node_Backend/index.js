@@ -33,7 +33,7 @@ app.get("/", async (req, res) => { //The base route
 
 app.get("/api/login", async (req, res) => { //The route to login
   try {
-    const resposne = await axios.get(`${C_Server_Route}/api/login`, {
+    const response = await axios.get(`${C_Server_Route}/api/login`, {
       headers: {
         "key": API_KEY
       }
@@ -60,13 +60,17 @@ app.get("/api/files/name/:user_id", async (req, res) => { //The route to get the
 
 });
 
-app.get("/api/files/download", async (req, res) => { //The route to get the file to download
+app.get("/api/files/download/:file_id", async (req, res) => { //The route to get the file to download
   try {
-    const resposne = await axios.get(`${C_Server_Route}/api/files/download/${req.body.fileId}`, {
+    const {file_id} = req.params;
+    const response = await axios.get(`${C_Server_Route}/api/files/download/${file_id}`, {
       headers: {
-        "key": API_KEY
-      }
+        "key": API_KEY,
+      },
+      responseType: "stream"
     });
+    response.data.pipe(res);
+
   } catch (error) {
     console.error("Error downloading file:", error);
     res.status(500).send("Error downloading file");
@@ -76,13 +80,17 @@ app.get("/api/files/download", async (req, res) => { //The route to get the file
 
 //Post Routes
 
-app.post("/add/files/upload", async (req, res) => { //The route to upload a new file
+app.post("/add/files/upload/:user_id", async (req, res) => { //The route to upload a new file
+  const {user_id} = req.params;
   try {
-    const resposne = await axios.post(`${C_Server_Route}/api/files/upload/${req.body.fileId}`, {
+    const response = await axios.post(`${C_Server_Route}/api/files/upload/${user_id}`, {
       headers: {
         "key": API_KEY
-      }
+      },
+      data: req,                      // <-- this is the stream
+      responseType: "stream"
     });
+    response.data.pipe(res);
   } catch (error) {
     console.error("Error uploading file:", error);
     res.status(500).send("Error uploading file");
@@ -94,7 +102,7 @@ app.post("/add/files/upload", async (req, res) => { //The route to upload a new 
 
 app.post("/api/files/name", async (req, res) => { //The route to change the name of a file
   try {
-    const resposne = await axios.patch(`${C_Server_Route}/api/files/upload/${req.body.fileId}/${req.body.newName}`, {
+    const response = await axios.patch(`${C_Server_Route}/api/files/upload/${req.body.fileId}/${req.body.newName}`, {
       headers: {
         "key": API_KEY
       }
@@ -107,7 +115,7 @@ app.post("/api/files/name", async (req, res) => { //The route to change the name
 
 app.post("/api/files/move", async (req, res) => { //The route to change the location of a file
   try {
-    const resposne = await axios.patch(`${C_Server_Route}/api/files/upload/${req.body.fileId}/${req.body.newFileLocation}`, {
+    const response = await axios.patch(`${C_Server_Route}/api/files/upload/${req.body.fileId}/${req.body.newFileLocation}`, {
       headers: {
         "key": API_KEY
       }
@@ -123,7 +131,7 @@ app.post("/api/files/move", async (req, res) => { //The route to change the loca
 
 app.post("/api/files/delete", async (req, res) => { //The route to delete a file
   try {
-    const resposne = await axios.delete(`${C_Server_Route}/api/files/upload/${req.body.fileId}`, {
+    const response = await axios.delete(`${C_Server_Route}/api/files/upload/${req.body.fileId}`, {
       headers: {
         "key": API_KEY
       }
