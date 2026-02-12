@@ -44,18 +44,20 @@ app.get("/api/login", async (req, res) => { //The route to login
   }
 });
 
-app.get("/api/files/name", async (req, res) => { //The route to get the file to download
+app.get("/api/files/name/:user_id", async (req, res) => { //The route to get the file to download
+  const {user_id} = req.params;
   try {
-    const resposne = await axios.get(`${C_Server_Route}/api/files/name`, {
+    const response = await axios.get(`${C_Server_Route}/api/files/name/${user_id}`, {
       headers: {
         "key": API_KEY
       }
     });
-    res.json(resposne.data);
+    res.json(response.data);
   } catch (error) {
-    console.error("Error downloading file:", error);
-    res.status(500).send("Error downloading file");
+    console.error("Error retreving files:", error);
+    res.status(500).send("Error retreving files");
   }
+
 });
 
 app.get("/api/files/download", async (req, res) => { //The route to get the file to download
