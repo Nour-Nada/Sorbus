@@ -5,10 +5,15 @@ import dotenv from "dotenv";
 
 const app = express();
 const port = 3000;
+dotenv.config();
+
+// Allow raw streaming BEFORE body parsers
+app.use("/api/files/upload", (req, res, next) => {
+  next(); // do NOT attach body parsers here
+});
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
-dotenv.config();
 
 
 //Important variables
@@ -80,22 +85,38 @@ app.get("/api/files/download/:file_id", async (req, res) => { //The route to get
 
 //Post Routes
 
-app.post("/add/files/upload/:user_id", async (req, res) => { //The route to upload a new file
-  const {user_id} = req.params;
+app.post("/api/files/upload/:user_id", async (req, res) => {
+  const { user_id } = req.params;
+  const file_name = req.headers['file_name'];
+  const file_location = req.headers['file_location'];
+
   try {
-    const response = await axios.post(`${C_Server_Route}/api/files/upload/${user_id}`, {
-      headers: {
-        "key": API_KEY
-      },
-      data: req,                      // <-- this is the stream
-      responseType: "stream"
-    });
-    response.data.pipe(res);
+    // const response = await axios.post(
+    //   `${C_Server_Route}/api/files/upload/${user_id}`,
+    //   req, // stream
+    //   {
+    //     headers: {
+    //       "key": API_KEY,
+    //       "file_name": file_name,
+    //       "file_location": file_location,
+    //       "Content-Type": req.headers["content-type"] || "application/octet-stream",
+    //       "Content-Length": req.headers["content-length"], // <-- THIS IS REQUIRED
+    //     },
+    //     responseType: "stream",
+    //     maxBodyLength: Infinity,
+    //     maxContentLength: Infinity,
+    //   }
+    // );
+
+    //add file stremaing from upload from React frontend
+
   } catch (error) {
-    console.error("Error uploading file:", error);
-    res.status(500).send("Error uploading file");
+    console.error("Upload error:", error);
+    res.status(500).send("Upload failed");
   }
 });
+
+
 
 
 //Patch Routes
