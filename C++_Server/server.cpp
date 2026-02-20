@@ -8,6 +8,8 @@
 #include <chrono>
 #include <ctime>
 #include <iomanip>
+#include <atomic>
+#include <cstdlib>
 
 //Download System Headers
 #include <pqxx/pqxx>
@@ -31,10 +33,21 @@ httplib::Server svr;  //TO-DO: Make it an HTTPS server so that there is encrypti
 
 //Global Variables
 //TO-DO: Hide variables from file before deployment
-const std::string API_KEY = "test12345"; //The API key
+const std::string API_KEY = []() {
+    const char* value = std::getenv("FILEAPP_API_KEY");
+    return (value && *value) ? std::string(value) : "test12345";
+}(); //The API key
 const std::string OUTPUT_FILE = "server_output.txt"; //Where the print statements, errors, and more gets outputted to in deployment
-std::string FILE_LOCATION = "C:/Users/nour2/Videos/Test"; //The location of the stored files
-int api_traffic_count = 0; //Counts how many API calls are made to valid endpoints while the server is still open
+std::string FILE_LOCATION = []() {
+    const char* value = std::getenv("FILEAPP_FILE_LOCATION");
+    return (value && *value) ? std::string(value) : "C:/Users/nour2/Videos/Test";
+}(); //The location of the stored files
+const std::string DB_CONNECTION_STRING = []() {
+    const char* value = std::getenv("FILEAPP_DB_CONNECTION");
+    return (value && *value) ? std::string(value)
+        : "dbname=pyrus user=postgres password=REDACTED host=localhost";
+}();
+std::atomic<int> api_traffic_count{ 0 }; //Counts how many API calls are made to valid endpoints while the server is still open
 
 //Global String Errors
 const std::string BAD_DB_CONNECTION = "Cannot Connect to Database;";
@@ -55,7 +68,44 @@ const std::string GOOD_DB_CONNECTION = "Connected to PostgreSQL Server; API Path
 
 //Global helper functions
 #define LOG_TIME() std::cout << std::endl << "[" << getTimestamp() << "] " << std::endl;
-#define LOG_CALL() api_traffic_count++;
+#define LOG_CALL() api_traffic_count.fetch_add(1, std::memory_order_relaxed);
+
+static std::string trim_leading_separators(std::string path) {
+    while (!path.empty() && (path.front() == '/' || path.front() == '\\')) {
+        path.erase(path.begin());
+    }
+    return path;
+}
+
+static bool is_path_within_base(const fs::path& base, const fs::path& target) {
+    const auto base_norm = fs::absolute(base).lexically_normal();
+    const auto target_norm = fs::absolute(target).lexically_normal();
+
+    auto b = base_norm.begin();
+    auto t = target_norm.begin();
+    for (; b != base_norm.end() && t != target_norm.end(); ++b, ++t) {
+        if (*b != *t) {
+            return false;
+        }
+    }
+    return b == base_norm.end();
+}
+
+static bool build_safe_path(const std::string& location, const std::string& leaf_name, fs::path& out_path) {
+    const fs::path base(FILE_LOCATION);
+    fs::path candidate = base / trim_leading_separators(location);
+    if (!leaf_name.empty()) {
+        candidate /= leaf_name;
+    }
+    candidate = candidate.lexically_normal();
+
+    if (!is_path_within_base(base, candidate)) {
+        return false;
+    }
+
+    out_path = fs::absolute(candidate);
+    return true;
+}
 
 
 
@@ -109,7 +159,7 @@ int main(void)
                 std::string API_PATH = "GET: /api/login";
                 std::string key = req.get_header_value("key");
 
-                pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
+                pqxx::connection DB_Connection(DB_CONNECTION_STRING);
                 if (!DB_Connection.is_open()) {
                     res.status = 502;
                     std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
@@ -145,7 +195,7 @@ int main(void)
             std::string API_PATH = "GET: /api/login";
             std::string key = req.get_header_value("key");
 
-            pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
             if (!DB_Connection.is_open()) {
                 res.status = 502;
                 std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
@@ -195,7 +245,7 @@ int main(void)
                 return;
             }
 
-            pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
             if (!DB_Connection.is_open()) {
                 res.status = 502;
                 std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
@@ -274,7 +324,7 @@ int main(void)
                 return;
             }
 
-            pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
             if (!DB_Connection.is_open()) {
                 res.status = 502;
                 std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
@@ -313,11 +363,17 @@ int main(void)
                 file_location = "";
             }
 
-            std::string file_path = FILE_LOCATION + file_location + "/" + file_name;
+            fs::path safe_file_path;
+            if (!build_safe_path(file_location, file_name, safe_file_path)) {
+                res.status = 400;
+                res.set_content(BAD_PARAMATER, "text/plain");
+                return;
+            }
+            std::string file_path = safe_file_path.string();
+            auto temp_zip_to_cleanup = std::make_shared<fs::path>();
 
             if (type == "folder") {
-
-                fs::path folder_path = file_path;
+                fs::path folder_path = safe_file_path;
 
                 std::string zip_name = file_name + ".zip";
                 fs::path temp_zip_path = fs::temp_directory_path() / zip_name;
@@ -371,6 +427,7 @@ int main(void)
                 mz_zip_writer_end(&zip);
 
                 file_path = file_name;
+                *temp_zip_to_cleanup = temp_zip_path;
             }
 
 
@@ -407,13 +464,15 @@ int main(void)
                     }
 
                     return true; // always return true
+                },
+                [file, temp_zip_to_cleanup](bool) {
+                    file->close();
+                    if (!temp_zip_to_cleanup->empty()) {
+                        std::error_code ec;
+                        fs::remove(*temp_zip_to_cleanup, ec);
+                    }
                 }
             );
-
-            //delete zip file
-            /*if (type == "folder" && fs::exists(file_path)) {
-                fs::remove(file_path);
-            }*/
 
             res.status = 200;
             return;
@@ -472,6 +531,7 @@ int main(void)
             std::ofstream out_file(file_path, std::ios::binary);
             if (!out_file.is_open()) {
                 res.status = 500;
+                out_file.close();
                 return;
             }
 
@@ -479,21 +539,36 @@ int main(void)
             bool write_success = true;
             size_t total_bytes = 0;
 
-            content_reader([&](const char* data, size_t data_length) {
-                if (write_success) {
+            if (req.is_multipart_form_data()) {
+                content_reader([&](const char* data, size_t data_length) {
+                    if (!write_success) return false; // already failed before
+                    std::cout << "Received chunk of size: " << data_length << " bytes\n" << std::endl;
                     out_file.write(data, data_length);
-                    if (out_file.good()) {
-                        total_bytes += data_length;
-                        return true; // Continue reading
-                    }
-                    else {
+                    if (!out_file) {
                         write_success = false;
-                        std::cout << "Failed to write data to file" << std::endl;
-                        return false; // Stop reading
+                        std::cout << "Failed to write data to file\n";
+                        return false; // abort read
                     }
-                }
-                return false;
-            });
+
+                    total_bytes += data_length;
+                });
+            }
+            else {
+                // If not multipart, read the entire body at once (not ideal for large files)
+                content_reader([&](const char* data, size_t data_length) {
+                    if (!write_success) return false;
+
+                    out_file.write(data, static_cast<std::streamsize>(data_length));
+                    if (!out_file) {
+                        write_success = false;
+                        std::cout << "Failed to write raw body to file\n";
+                        return false;
+                    }
+
+                    total_bytes += data_length;
+                    return true;
+                });
+            }
 
             out_file.close();
 
@@ -517,7 +592,7 @@ int main(void)
             };
             std::string extension = get_file_extension(file_name);
 
-            pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
             if (!DB_Connection.is_open()) {
                 res.status = 502;
                 std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
@@ -531,7 +606,7 @@ int main(void)
             pqxx::work DB_Open_Connection{ DB_Connection };
             try {
                 pqxx::result result = DB_Open_Connection.exec_params(
-                    "INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES ($1, $2, $3, $4, '.txt');",
+                    "INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES ($1, $2, $3, $4, $5);",
                         user_id_int, file_name, file_location, total_bytes, extension
                 );
             }
@@ -564,7 +639,7 @@ int main(void)
                 return;
             }
 
-            pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
             if (!DB_Connection.is_open()) {
                 res.status = 502;
                 std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
@@ -603,8 +678,8 @@ int main(void)
             pqxx::work DB_Open_Connection{ DB_Connection };
             try {
                 pqxx::result tmpResult = DB_Open_Connection.exec_params(
-                    "SELECT * from files WHERE file_name = $1;",
-                    new_name);
+                    "SELECT 1 FROM files WHERE user_id = $1 AND file_location = $2 AND file_name = $3 LIMIT 1;",
+                    user_id_int, folder_path, new_name);
                 if (!tmpResult.empty()) { //Checks if the new name is a duplicate name
                     DB_Open_Connection.commit();
                     res.status = 409;
@@ -613,17 +688,13 @@ int main(void)
                     return;
                 }
 
-                fs::path basePath(FILE_LOCATION);
-
-                std::string folder_path_edit = folder_path;
-                if (!folder_path.empty() &&
-                    (folder_path[0] == '/' || folder_path[0] == '\\')) {
-                    folder_path_edit.erase(0, 1);
+                fs::path newPath;
+                if (!build_safe_path(folder_path, new_name, newPath)) {
+                    res.status = 400;
+                    res.set_content(BAD_PARAMATER, "text/plain");
+                    DB_Open_Connection.commit();
+                    return;
                 }
-
-                fs::path newPath = basePath / folder_path_edit / new_name;
-
-                newPath = fs::absolute(newPath);
 
                 try {
                     fs::create_directory(newPath);
@@ -662,7 +733,7 @@ int main(void)
             std::string API_PATH = "PATCH: /api/files/name";
             std::string key = req.get_header_value("key");
             std::string file_id = req.path_params.at("file_id");
-            std::string new_name = req.path_params.at("new_name");
+            std::string new_name;
 
             int file_id_int = 0;
             try {
@@ -675,7 +746,7 @@ int main(void)
                 return;
             }
 
-            pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
             if (!DB_Connection.is_open()) {
                 res.status = 502;
                 std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
@@ -697,13 +768,37 @@ int main(void)
 
                 std::string file_location = result[0]["file_location"].c_str();
                 std::string file_name = result[0]["file_name"].c_str();
-                std::string type = result[0]["file_extension"].c_str();
+                int user_id_int = result[0]["user_id"].as<int>();
+
+                auto new_name_it = req.path_params.find("new_name");
+                if (new_name_it != req.path_params.end()) {
+                    new_name = new_name_it->second;
+                }
+                else {
+                    nlohmann::json body;
+                    try {
+                        body = nlohmann::json::parse(req.body);
+                    }
+                    catch (const std::exception&) {
+                        res.status = 400;
+                        res.set_content("Invalid JSON body", "text/plain");
+                        DB_Open_Connection.commit();
+                        return;
+                    }
+                    if (!body.contains("new_name")) {
+                        res.status = 400;
+                        res.set_content("Missing New Name in Body", "text/plain");
+                        DB_Open_Connection.commit();
+                        return;
+                    }
+                    new_name = body["new_name"].get<std::string>();
+                }
 
                 //TO-DO: Check to make sure the file does not already exist by checking the database
 
                 pqxx::result tmpResult = DB_Open_Connection.exec_params(
-                    "SELECT * from files WHERE file_name = $1;",
-                    new_name);
+                    "SELECT 1 FROM files WHERE user_id = $1 AND file_location = $2 AND file_name = $3 AND id <> $4 LIMIT 1;",
+                    user_id_int, file_location, new_name, file_id_int);
                 if (!tmpResult.empty()) { //Checks if the new name is a duplicate name
                     DB_Open_Connection.commit();
                     res.status = 409;
@@ -712,14 +807,14 @@ int main(void)
                     return;
                 }
 
-                std::string file_location_edit = file_location;
-                if (!file_location_edit.empty() && file_location_edit[0] == '/') {
-                    file_location_edit.erase(0, 1);
+                fs::path fullPath;
+                fs::path newPath;
+                if (!build_safe_path(file_location, file_name, fullPath) || !build_safe_path(file_location, new_name, newPath)) {
+                    res.status = 400;
+                    res.set_content(BAD_PARAMATER, "text/plain");
+                    DB_Open_Connection.commit();
+                    return;
                 }
-
-                fs::path basePath(FILE_LOCATION);
-                fs::path fullPath = (basePath / file_location_edit / file_name);
-                fs::path newPath = (basePath / file_location_edit / new_name);
 
                 try {
                     fs::rename(fullPath, newPath);
@@ -774,7 +869,7 @@ int main(void)
                 return;
             }
 
-            pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
             if (!DB_Connection.is_open()) {
                 res.status = 502;
                 std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
@@ -828,25 +923,14 @@ int main(void)
             }
 
             std::string new_file_location = body["new_location"].get<std::string>();
-
-            fs::path basePath(FILE_LOCATION);
-
-            std::string file_location_edit_new = new_file_location;
-            if (!file_location_edit_new.empty() && file_location_edit_new[0] == '/') {
-                file_location_edit_new.erase(0, 1);
+            fs::path oldPath;
+            fs::path newPath;
+            if (!build_safe_path(file_location, file_name, oldPath) || !build_safe_path(new_file_location, file_name, newPath)) {
+                res.status = 400;
+                res.set_content(BAD_PARAMATER, "text/plain");
+                DB_Open_Connection.commit();
+                return;
             }
-
-            std::string file_location_edit = file_location;
-            if (!file_location_edit.empty() && file_location_edit[0] == '/') {
-                file_location_edit.erase(0, 1);
-            }
-
-            // Build paths
-            fs::path oldPath = basePath / file_location_edit / file_name;
-            fs::path newPath = basePath / file_location_edit_new / file_name;
-
-            newPath = fs::absolute(newPath);
-            oldPath = fs::absolute(oldPath);
 
             try {
                 fs::rename(oldPath, newPath);
@@ -899,7 +983,7 @@ int main(void)
                 return;
             }
 
-            pqxx::connection DB_Connection("dbname=pyrus user=postgres password=REDACTED host=localhost");
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
             if (!DB_Connection.is_open()) {
                 res.status = 502;
                 std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
@@ -935,17 +1019,13 @@ int main(void)
                 return;
             }
 
-            fs::path basePath(FILE_LOCATION);
-
-            // Build paths
-            std::string file_location_edit = file_location;
-            if (!file_location_edit.empty() && file_location_edit[0] == '/') {
-                file_location_edit.erase(0, 1);
+            fs::path deletePath;
+            if (!build_safe_path(file_location, file_name, deletePath)) {
+                res.status = 400;
+                res.set_content(BAD_PARAMATER, "text/plain");
+                DB_Open_Connection.commit();
+                return;
             }
-
-            fs::path deletePath = basePath / file_location_edit / file_name;
-
-            deletePath = fs::absolute(deletePath);
 
             try {
                 if (fs::exists(deletePath)) { //The reason that this action has a checked but not preovus actions is because deleting a file with an unkown path could cause uninted things therefore it is just better to check it
@@ -1006,5 +1086,5 @@ int main(void)
     svr.listen("localhost", PORT);
 
     //std::cout << std::endl << std::endl << "The amount of API calls made to valid endpoints are: " << api_traffic_count << std::endl;
-    return api_traffic_count; //Returns how many API calls were made to valid endpoints while the server was open
+    return api_traffic_count.load(std::memory_order_relaxed); //Returns how many API calls were made to valid endpoints while the server was open
 }
