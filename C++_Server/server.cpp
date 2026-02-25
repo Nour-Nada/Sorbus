@@ -154,7 +154,7 @@ int main(void)
         // Auth Routes
 
         //TO-DO: Add login and signup functionality
-        svr.Post("/api/login", [&](const httplib::Request& req, httplib::Response& res) { //Logging in a user
+        svr.Post("/api/user/login", [&](const httplib::Request& req, httplib::Response& res) { //Logging in a user
             LOG_CALL();
                 std::string API_PATH = "GET: /api/login";
                 std::string key = req.get_header_value("key");
@@ -190,7 +190,7 @@ int main(void)
             return;
         });
 
-        svr.Post("/api/signup", [&](const httplib::Request& req, httplib::Response& res) { //Logging in a user
+        svr.Post("/api/user/signup", [&](const httplib::Request& req, httplib::Response& res) { //Logging in a user
             LOG_CALL();
             std::string API_PATH = "GET: /api/login";
             std::string key = req.get_header_value("key");
@@ -224,7 +224,7 @@ int main(void)
             }
 
             return;
-            });
+        });
 
 
         // Get Routes
@@ -264,11 +264,13 @@ int main(void)
                 );
 
                 nlohmann::json tree = nlohmann::json::object(); //Creates JSON object
+                nlohmann::json file_ids = nlohmann::json::object();
 
                 for (const auto& row : result) {
                     std::string file_location = row["file_location"].c_str();
                     std::string file_name = row["file_name"].c_str();
                     std::string type = row["file_extension"].c_str(); // "file" or "folder"
+                    int id = row["id"].as<int>();
 
                     nlohmann::json* current = &tree; //Sets current equal to the JSON object
 
@@ -291,13 +293,14 @@ int main(void)
                         (*current)[file_name] = nlohmann::json::object();
                     }
                     else {
-                        (*current)[file_name] = file_location;
+                        std::string full_path = file_location.empty() ? file_name : file_location + "/" + file_name;
+                        (*current)[file_name] = full_path;
+                        file_ids[full_path] = id;
                     }
                 }
 
-                //std::cout << "JSON Output: " << std::endl << tree.dump(4) << std::endl; //Output to test the JSON
                 res.status = 200;
-                res.set_content(tree.dump(), "application/json"); //API response
+                res.set_content(nlohmann::json{{"tree", tree}, {"fileIds", file_ids}}.dump(), "application/json"); //API response
             }
             catch (const std::exception& e) {
                 res.status = 500;
