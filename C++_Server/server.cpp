@@ -67,43 +67,45 @@ const std::string UNABLE_TO_UPLOAD_FILE = "The File Was Not Uploaded;";
 const std::string GOOD_DB_CONNECTION = "Connected to PostgreSQL Server; API Path ";
 
 //Global helper functions
-#define LOG_TIME() std::cout << std::endl << "[" << getTimestamp() << "] " << std::endl;
-#define LOG_CALL() api_traffic_count.fetch_add(1, std::memory_order_relaxed);
+#define LOG_TIME() std::cout << std::endl << "[" << getTimestamp() << "] " << std::endl; // Logs the time the API was called
+#define LOG_CALL() api_traffic_count.fetch_add(1, std::memory_order_relaxed); // Logs that an API endpoint was hit allowing us to keep track of the traffic
 
-static std::string trim_leading_separators(std::string path) {
+static std::string trim_leading_separators(std::string path) { //Removes the leading slashes for a folder trail as it may cause issues with C++ 17 filesystem features
     while (!path.empty() && (path.front() == '/' || path.front() == '\\')) {
         path.erase(path.begin());
     }
     return path;
 }
 
-static bool is_path_within_base(const fs::path& base, const fs::path& target) {
+static bool is_path_within_base(const fs::path& base, const fs::path& target) { // Just checks to path's against each other to ensure that target is within the base path passed in
+    //Normalizes the paths
     const auto base_norm = fs::absolute(base).lexically_normal();
     const auto target_norm = fs::absolute(target).lexically_normal();
 
+    //Sets b and t to the first part of the path
     auto b = base_norm.begin();
     auto t = target_norm.begin();
-    for (; b != base_norm.end() && t != target_norm.end(); ++b, ++t) {
+    for (; b != base_norm.end() && t != target_norm.end(); ++b, ++t) { //Traverse the paths until the base ends, or the target ends
         if (*b != *t) {
             return false;
         }
     }
-    return b == base_norm.end();
+    return b == base_norm.end(); //Even if it passes the for loop if b is not equal to the end of the base path then we know that target is not in it
 }
 
-static bool build_safe_path(const std::string& location, const std::string& leaf_name, fs::path& out_path) {
+static bool build_safe_path(const std::string& location, const std::string& leaf_name, fs::path& out_path) {  //Creates a safe path when given the file_location and file_name. And accordingly chanes out_path to match this (a safe path is necessary for the C++ 17 filesystem library features)
     const fs::path base(FILE_LOCATION);
     fs::path candidate = base / trim_leading_separators(location);
     if (!leaf_name.empty()) {
         candidate /= leaf_name;
     }
-    candidate = candidate.lexically_normal();
+    candidate = candidate.lexically_normal(); //Now a safe path to the file is created in candidate
 
-    if (!is_path_within_base(base, candidate)) {
+    if (!is_path_within_base(base, candidate)) { //A safety check to make sure that candidate is within base
         return false;
     }
 
-    out_path = fs::absolute(candidate);
+    out_path = fs::absolute(candidate); //Sets out_path to the absolute version of candidate
     return true;
 }
 
@@ -123,7 +125,7 @@ int main(void)
     std::cout.rdbuf(logFile.rdbuf()); //changes original buffer
     */
 
-    svr.set_pre_request_handler([&](const httplib::Request& req, httplib::Response& res) {
+    svr.set_pre_request_handler([&](const httplib::Request& req, httplib::Response& res) { //Does the api key check logic before even allowing any routes to  be hit
             LOG_TIME();
             std::string API_PATH = req.path;
 
@@ -145,7 +147,7 @@ int main(void)
             }
             //I can uncomment this is I want specific logic for a specific path*/
 
-            return httplib::Server::HandlerResponse::Unhandled;
+            return httplib::Server::HandlerResponse::Unhandled; //Allows the other routes to be run if the above checks run
         }
     );
 
@@ -259,14 +261,14 @@ int main(void)
             pqxx::nontransaction DB_Open_Connection{ DB_Connection };
             try {
                 pqxx::result result = DB_Open_Connection.exec(
-                    pqxx::zview("SELECT * from files WHERE user_id = $1 ORDER BY file_location ASC;"),
+                    pqxx::zview("SELECT * from files WHERE user_id = $1 ORDER BY file_location ASC;"), //Selects all the files for this user
                     user_id_int
                 );
 
                 nlohmann::json tree = nlohmann::json::object(); //Creates JSON object
                 nlohmann::json file_ids = nlohmann::json::object();
 
-                for (const auto& row : result) {
+                for (const auto& row : result) { //Adds each file or folder by going row by row for each folder that got returned from the above query
                     std::string file_location = row["file_location"].c_str();
                     std::string file_name = row["file_name"].c_str();
                     std::string type = row["file_extension"].c_str(); // "file" or "folder"
@@ -345,12 +347,13 @@ int main(void)
             std::string type;
             try {
                 result = DB_Open_Connection.exec_params(
-                    "SELECT * FROM files WHERE id = $1;",
+                    "SELECT * FROM files WHERE id = $1;", //Returns the file that the user wants to download
                     file_id_int
                 );
                 if (result.empty()) {
                     throw std::runtime_error(DB_QUERY_ERROR);
                 }
+                //Extracts the neccesary informaon for sending the file for download from the user
                 file_location = result[0]["file_location"].c_str();
                 file_name = result[0]["file_name"].c_str();
                 type = result[0]["file_extension"].c_str();
@@ -375,7 +378,7 @@ int main(void)
             std::string file_path = safe_file_path.string();
             auto temp_zip_to_cleanup = std::make_shared<fs::path>();
 
-            if (type == "folder") {
+            if (type == "folder") { //If it is a folder it needs to be zipped first
                 fs::path folder_path = safe_file_path;
 
                 std::string zip_name = file_name + ".zip";
@@ -393,6 +396,7 @@ int main(void)
                 }
 
                 try {
+                    //This recursivly makes sure everythign ested in fthe folder is also zipped
                     for (fs::recursive_directory_iterator it(folder_path);
                         it != fs::recursive_directory_iterator(); ++it) {
 
@@ -435,7 +439,7 @@ int main(void)
 
 
 
-            auto file = std::make_shared<std::ifstream>(file_path, std::ios::binary);
+            auto file = std::make_shared<std::ifstream>(file_path, std::ios::binary); //Creates a pointer a dynamic stream
 
             if (!file->is_open()) {
                 res.status = 404;
@@ -443,13 +447,15 @@ int main(void)
                 res.set_content("File not found", "text/plain");
                 return;
             }
+            //Sets the necessary headers
             res.set_header("Content-Type", "application/octet-stream");
             res.set_header("Content-Disposition",
                 "attachment; filename=\"" + fs::path(file_path).filename().string() + "\"");
 
+            //Returns the downlad in chunks
             res.set_chunked_content_provider(
                 "application/octet-stream",
-                [file](size_t, httplib::DataSink& sink) mutable {
+                [file](size_t, httplib::DataSink& sink) mutable { //The C++ server libares syntax for chunking data to send
                     const size_t CHUNK_SIZE = 64 * 1024; // 64 KB
                     char buffer[CHUNK_SIZE];
 
@@ -531,7 +537,7 @@ int main(void)
                 res.set_content(UNABLE_TO_UPLOAD_FILE, "text/plain");
                 return;
             }
-            std::ofstream out_file(file_path, std::ios::binary);
+            std::ofstream out_file(file_path, std::ios::binary); //creates the output file where things will be written
             if (!out_file.is_open()) {
                 res.status = 500;
                 out_file.close();
@@ -542,8 +548,8 @@ int main(void)
             bool write_success = true;
             size_t total_bytes = 0;
 
-            if (req.is_multipart_form_data()) {
-                content_reader([&](const char* data, size_t data_length) {
+            if (req.is_multipart_form_data()) { //checks if the data is sent as chunks or as one
+                content_reader([&](const char* data, size_t data_length) { //if the data is sent in chuncks it uses the C++ server header libarys syntax for reading in chunked data
                     if (!write_success) return false; // already failed before
                     std::cout << "Received chunk of size: " << data_length << " bytes\n" << std::endl;
                     out_file.write(data, data_length);
@@ -573,20 +579,20 @@ int main(void)
                 });
             }
 
-            out_file.close();
+            out_file.close(); //Closes the file to prevent memory leaks
 
             // Check if streaming was successful
             if (!write_success) {
                 res.status = 500;
                 std::cout << "File write failed after " << total_bytes << " bytes" << std::endl;
                 res.set_content("Failed to Write File", "text/plain");
-                std::filesystem::remove(file_path); // Clean up partial file
+                std::filesystem::remove(file_path); // Clean up partial file if streaming was not succsefull
                 return;
             }
 
             std::cout << "Successfully wrote " << total_bytes << " bytes to " << file_path << std::endl;
 
-            auto get_file_extension = [](const std::string& file_name) -> std::string {
+            auto get_file_extension = [](const std::string& file_name) -> std::string { //gets the file extnesion for adding the file to the database
                 size_t dot_pos = file_name.find_last_of('.');
                 if (dot_pos == std::string::npos || dot_pos == file_name.length() - 1) {
                     return "";
@@ -611,7 +617,7 @@ int main(void)
                 pqxx::result result = DB_Open_Connection.exec_params(
                     "INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES ($1, $2, $3, $4, $5);",
                         user_id_int, file_name, file_location, total_bytes, extension
-                );
+                ); //Adds the neccesary information into the database that way the database and local storage stay updated
             }
             catch (const std::exception& e) {
                 res.status = 500;
@@ -682,15 +688,7 @@ int main(void)
             try {
                 pqxx::result tmpResult = DB_Open_Connection.exec_params(
                     "SELECT 1 FROM files WHERE user_id = $1 AND file_location = $2 AND file_name = $3 LIMIT 1;",
-                    user_id_int, folder_path, new_name);
-                if (!tmpResult.empty()) { //Checks if the new name is a duplicate name
-                    DB_Open_Connection.commit();
-                    res.status = 409;
-                    std::cout << "A File With This Name Already Exists in the Same Folder; API Path " << API_PATH << std::endl;
-                    res.set_content("A File With This Name Already Exists in the Same Folder", "text/plain");
-                    return;
-                }
-
+                    user_id_int, folder_path, new_name); //Ensures the folder does not already exist in the database
                 fs::path newPath;
                 if (!build_safe_path(folder_path, new_name, newPath)) {
                     res.status = 400;
@@ -698,9 +696,16 @@ int main(void)
                     DB_Open_Connection.commit();
                     return;
                 }
+                if (!tmpResult.empty() || fs::exists(newPath)) { //Checks if the new name is a duplicate name (by using the database result and the local folders result)
+                    DB_Open_Connection.commit();
+                    res.status = 409;
+                    std::cout << "A File With This Name Already Exists in the Same Folder; API Path " << API_PATH << std::endl;
+                    res.set_content("A File With This Name Already Exists in the Same Folder", "text/plain");
+                    return;
+                }
 
                 try {
-                    fs::create_directory(newPath);
+                    fs::create_directory(newPath); //Creates the new folder
                 }
                 catch (const std::exception& e) {
                     res.status = 500;
@@ -713,7 +718,7 @@ int main(void)
                 pqxx::result result = DB_Open_Connection.exec_params(
                     "INSERT INTO files (user_id, file_name, file_location, file_extension, file_size) VALUES ($1, $2, $3, $4, $5);",
                     user_id_int, new_name, folder_path, "folder", -1
-                );
+                ); //Inserts the new folder into the database
 
                 DB_Open_Connection.commit();
 
@@ -764,8 +769,8 @@ int main(void)
             try {
                 pqxx::result result = DB_Open_Connection.exec_params(
                     "SELECT * from files WHERE id = $1;",
-                    file_id_int);
-                if (result.empty()) {
+                    file_id_int); //selects the file we want to rename
+                if (result.empty()) { //Checks to ensure the file exists
                     throw std::runtime_error(DB_QUERY_ERROR);
                 }
 
@@ -892,7 +897,7 @@ int main(void)
                 result = DB_Open_Connection.exec_params(
                     "SELECT * FROM files WHERE id = $1;",
                     file_id_int);
-                if (result.empty()) {
+                if (result.empty()) { //Ensures the file exists
                     throw std::runtime_error(DB_QUERY_ERROR);
                 }
 
@@ -928,7 +933,7 @@ int main(void)
             std::string new_file_location = body["new_location"].get<std::string>();
             fs::path oldPath;
             fs::path newPath;
-            if (!build_safe_path(file_location, file_name, oldPath) || !build_safe_path(new_file_location, file_name, newPath)) {
+            if (!build_safe_path(file_location, file_name, oldPath) || !build_safe_path(new_file_location, file_name, newPath)) { //creates a safe new file
                 res.status = 400;
                 res.set_content(BAD_PARAMATER, "text/plain");
                 DB_Open_Connection.commit();
@@ -936,7 +941,7 @@ int main(void)
             }
 
             try {
-                fs::rename(oldPath, newPath);
+                fs::rename(oldPath, newPath); //moves the file
             }
             catch (const std::exception& e) {
                 res.status = 500;
@@ -949,7 +954,7 @@ int main(void)
                 pqxx::result result = DB_Open_Connection.exec_params(
                     "UPDATE files SET file_location = $1 WHERE id = $2;",
                         new_file_location,
-                        file_id_int);
+                        file_id_int); //Updates the location of the file in the database
             }
             catch (const std::exception& e) {
                 res.status = 500;
@@ -1007,7 +1012,7 @@ int main(void)
                 result = DB_Open_Connection.exec_params(
                     "SELECT * FROM files WHERE id = $1;",
                     file_id_int);
-                if (result.empty()) {
+                if (result.empty()) { //Ensues the file exists in the database
                     throw std::runtime_error(DB_QUERY_ERROR);
                 }
 
@@ -1032,7 +1037,7 @@ int main(void)
 
             try {
                 if (fs::exists(deletePath)) { //The reason that this action has a checked but not preovus actions is because deleting a file with an unkown path could cause uninted things therefore it is just better to check it
-                    fs::remove(deletePath);
+                    fs::remove(deletePath); //Deletes the path
                 }
                 else {
                     res.status = 500;
