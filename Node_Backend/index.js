@@ -86,32 +86,36 @@ app.get("/api/files/download/:file_id", async (req, res) => { //The route to get
 //Post Routes
 
 app.post("/api/files/upload/:user_id", async (req, res) => {
-  const { user_id } = req.params;
-  const file_name = req.headers['file_name'];
-  const file_location = req.headers['file_location'];
-
   try {
-    // const response = await axios.post(
-    //   `${C_Server_Route}/api/files/upload/${user_id}`,
-    //   req, // stream
-    //   {
-    //     headers: {
-    //       "key": API_KEY,
-    //       "file_name": file_name,
-    //       "file_location": file_location,
-    //       "Content-Type": req.headers["content-type"] || "application/octet-stream",
-    //       "Content-Length": req.headers["content-length"], // <-- THIS IS REQUIRED
-    //     },
-    //     responseType: "stream",
-    //     maxBodyLength: Infinity,
-    //     maxContentLength: Infinity,
-    //   }
-    // );
+    const { user_id } = req.params;
 
-    //add file stremaing from upload from React frontend
+    const response = await axios({
+      method: "POST",
+      url: `${C_Server_Route}/api/files/upload/${user_id}`,
+      data: req,
+      responseType: "stream",
+      headers: {
+        key: API_KEY,
+        file_name: req.headers["file_name"],
+        file_location: req.headers["file_location"],
+        "content-type": req.headers["content-type"] || "application/octet-stream"
+      },
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity
+    });
+
+    res.status(response.status);
+    response.data.pipe(res);
 
   } catch (error) {
-    console.error("Upload error:", error);
+    console.error("Upload proxy error:", error.message);
+
+    if (error.response) {
+      res.status(error.response.status);
+      error.response.data.pipe(res);
+      return;
+    }
+
     res.status(500).send("Upload failed");
   }
 });

@@ -61,7 +61,7 @@ const std::string UNABLE_TO_DELETE = "The System was Unable to Delete This File;
 const std::string UNFOUND_FILE_PATH = "The System was Unable to Find This File Path;";
 const std::string UNABLE_TO_CREATE_FOLDER = "The System was Unable to Create a Folder;";
 const std::string UNOPEN_FILE = "The File Was Not Opened;";
-const std::string UNABLE_TO_UPLOAD_FILE = "The File Was Not Uploaded;";
+const std::string UNABLE_TO_UPLOAD_FILE = "The File Was Not Uploaded as it is a Duplicate;";
 
 //Global String Success
 const std::string GOOD_DB_CONNECTION = "Connected to PostgreSQL Server; API Path ";
@@ -549,7 +549,7 @@ int main(void)
             size_t total_bytes = 0;
 
             if (req.is_multipart_form_data()) { //checks if the data is sent as chunks or as one
-                content_reader([&](const char* data, size_t data_length) { //if the data is sent in chuncks it uses the C++ server header libarys syntax for reading in chunked data
+                content_reader([&](const char* data, size_t data_length) { //if the data is sent in chunks it uses the C++ server header libraries syntax for reading in chunked data
                     if (!write_success) return false; // already failed before
                     std::cout << "Received chunk of size: " << data_length << " bytes\n" << std::endl;
                     out_file.write(data, data_length);
