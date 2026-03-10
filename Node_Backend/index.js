@@ -73,8 +73,8 @@ app.get("/api/files/download/:file_id", async (req, res) => { //The route to get
         "key": API_KEY,
       },
       responseType: "stream"
-    });
-    response.data.pipe(res);
+    }); //Sets reponse equal to API call as well as calling the C++ server API
+    response.data.pipe(res); //Uses response to pipe the data from the frontend to the C++ server
 
   } catch (error) {
     console.error("Error downloading file:", error);
@@ -85,7 +85,7 @@ app.get("/api/files/download/:file_id", async (req, res) => { //The route to get
 
 //Post Routes
 
-app.post("/api/files/upload/:user_id", async (req, res) => {
+app.post("/api/files/upload/:user_id", async (req, res) => { //Uploads the given file from the frontend to the C++ server
   try {
     const { user_id } = req.params;
 
@@ -95,28 +95,37 @@ app.post("/api/files/upload/:user_id", async (req, res) => {
       data: req,
       responseType: "stream",
       headers: {
+        ...req.headers,
         key: API_KEY,
         file_name: req.headers["file_name"],
         file_location: req.headers["file_location"],
-        "content-type": req.headers["content-type"] || "application/octet-stream"
       },
       maxBodyLength: Infinity,
       maxContentLength: Infinity
-    });
+    }); //Saves the axios response to a variable as well as sending the intial data and opening a stream to the C++ server
 
-    res.status(response.status);
-    response.data.pipe(res);
+    res.status(response.status); //Sets the status to the status of the response from the C++ server
+    response.data.pipe(res); //Pipes the data from the frontend into the C++ server
 
   } catch (error) {
-    console.error("Upload proxy error:", error.message);
+    console.error("Error uploading file:", error.message); //Displays the error message
 
-    if (error.response) {
+    if (error.response) { //If the error has a response, it means the C++ server responded with an error status code
       res.status(error.response.status);
       error.response.data.pipe(res);
       return;
     }
 
     res.status(500).send("Upload failed");
+  }
+});
+
+app.post("/api/files/create/:user_id", async (req, res) => { //Creates a new file with the given name and location
+  try {
+    
+
+  } catch (error) {
+    
   }
 });
 
@@ -127,7 +136,7 @@ app.post("/api/files/upload/:user_id", async (req, res) => {
 
 app.post("/api/files/name", async (req, res) => { //The route to change the name of a file
   try {
-    const response = await axios.patch(`${C_Server_Route}/api/files/upload/${req.body.fileId}/${req.body.newName}`, {
+    const response = await axios.patch(`${C_Server_Route}/api/files/name/${req.body.fileId}/${req.body.newName}`, {
       headers: {
         "key": API_KEY
       }

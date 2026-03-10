@@ -549,6 +549,7 @@ int main(void)
             size_t total_bytes = 0;
 
             if (req.is_multipart_form_data()) { //checks if the data is sent as chunks or as one
+                std::cout << "Data is multipart" << std::endl;
                 content_reader([&](const char* data, size_t data_length) { //if the data is sent in chunks it uses the C++ server header libraries syntax for reading in chunked data
                     if (!write_success) return false; // already failed before
                     std::cout << "Received chunk of size: " << data_length << " bytes\n" << std::endl;
@@ -560,10 +561,12 @@ int main(void)
                     }
 
                     total_bytes += data_length;
+                    return true;
                 });
             }
             else {
                 // If not multipart, read the entire body at once (not ideal for large files)
+                std::cout << "Data is not multipart" << std::endl;
                 content_reader([&](const char* data, size_t data_length) {
                     if (!write_success) return false;
 
@@ -586,13 +589,13 @@ int main(void)
                 res.status = 500;
                 std::cout << "File write failed after " << total_bytes << " bytes" << std::endl;
                 res.set_content("Failed to Write File", "text/plain");
-                std::filesystem::remove(file_path); // Clean up partial file if streaming was not succsefull
+                std::filesystem::remove(file_path); // Clean up partial file if streaming was not successful
                 return;
             }
 
             std::cout << "Successfully wrote " << total_bytes << " bytes to " << file_path << std::endl;
 
-            auto get_file_extension = [](const std::string& file_name) -> std::string { //gets the file extnesion for adding the file to the database
+            auto get_file_extension = [](const std::string& file_name) -> std::string { //gets the file extension for adding the file to the database
                 size_t dot_pos = file_name.find_last_of('.');
                 if (dot_pos == std::string::npos || dot_pos == file_name.length() - 1) {
                     return "";
@@ -617,7 +620,7 @@ int main(void)
                 pqxx::result result = DB_Open_Connection.exec_params(
                     "INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES ($1, $2, $3, $4, $5);",
                         user_id_int, file_name, file_location, total_bytes, extension
-                ); //Adds the neccesary information into the database that way the database and local storage stay updated
+                ); //Adds the necessary information into the database that way the database and local storage stay updated
             }
             catch (const std::exception& e) {
                 res.status = 500;
