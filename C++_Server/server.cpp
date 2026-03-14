@@ -550,19 +550,24 @@ int main(void)
 
             if (req.is_multipart_form_data()) { //checks if the data is sent as chunks or as one
                 std::cout << "Data is multipart" << std::endl;
-                content_reader([&](const char* data, size_t data_length) { //if the data is sent in chunks it uses the C++ server header libraries syntax for reading in chunked data
-                    if (!write_success) return false; // already failed before
-                    std::cout << "Received chunk of size: " << data_length << " bytes\n" << std::endl;
-                    out_file.write(data, data_length);
-                    if (!out_file) {
-                        write_success = false;
-                        std::cout << "Failed to write data to file\n";
-                        return false; // abort read
+                content_reader(
+                    [&](const httplib::FormData& part) { // called once per part header — return true to receive the body for this part
+                        std::cout << "Receiving part: " << part.name << std::endl;
+                        return true;
+                    },
+                    [&](const char* data, size_t data_length) { // called repeatedly with each chunk of the current part's body
+                        if (!write_success) return false;
+                        std::cout << "Received chunk of size: " << data_length << " bytes\n";
+                        out_file.write(data, static_cast<std::streamsize>(data_length));
+                        if (!out_file) {
+                            write_success = false;
+                            std::cout << "Failed to write data to file\n";
+                            return false;
+                        }
+                        total_bytes += data_length;
+                        return true;
                     }
-
-                    total_bytes += data_length;
-                    return true;
-                });
+                );
             }
             else {
                 // If not multipart, read the entire body at once (not ideal for large files)
