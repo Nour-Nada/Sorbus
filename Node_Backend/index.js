@@ -127,15 +127,9 @@ app.post("/api/files/create/:user_id", async (req, res) => { //Creates a new fil
     const response = await axios({
       method: "POST",
       url: `${C_Server_Route}/api/files/create/${user_id}`,
-      data: {
-        new_name: req.body.new_name,
-        folder_path: req.body.folder_path,
-      },
-      headers: {
-        "Content-Type": "application/json",
-        key: API_KEY,
-      },
-    }); //Saves the axios response to a variable as well as sending the intial data and opening a stream to the C++ server
+      data: { new_name: req.body.new_name, folder_path: req.body.folder_path },
+      headers: { "Content-Type": "application/json", key: API_KEY },
+    });
 
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
@@ -149,26 +143,32 @@ app.post("/api/files/create/:user_id", async (req, res) => { //Creates a new fil
 
 //Patch Routes
 
-app.post("/api/files/name", async (req, res) => { //The route to change the name of a file
+app.post("/api/files/name/:file_id", async (req, res) => { //The route to change the name of a file
   try {
-    const response = await axios.patch(`${C_Server_Route}/api/files/name/${req.body.fileId}/${req.body.newName}`, {
-      headers: {
-        "key": API_KEY
-      }
+    const { file_id } = req.params;
+    const response = await axios({
+      method: "PATCH",
+      url: `${C_Server_Route}/api/files/name/${file_id}`,
+      data: { new_name: req.body.new_name },
+      headers: { "Content-Type": "application/json", key: API_KEY },
     });
+    res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
     console.error("Error changing file name:", error);
     res.status(500).send("Error changing file name");
   }
 });
 
-app.post("/api/files/move", async (req, res) => { //The route to change the location of a file
+app.post("/api/files/move/:file_id", async (req, res) => { //The route to change the location of a file
   try {
-    const response = await axios.patch(`${C_Server_Route}/api/files/upload/${req.body.fileId}/${req.body.newFileLocation}`, {
-      headers: {
-        "key": API_KEY
-      }
+    const { file_id } = req.params;
+    const response = await axios({
+      method: "PATCH",
+      url: `${C_Server_Route}/api/files/move/${file_id}`,
+      data: { new_location: req.body.new_location },
+      headers: { "Content-Type": "application/json", key: API_KEY },
     });
+    res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
     console.error("Error changing file location:", error);
     res.status(500).send("Error changing file location");
@@ -180,10 +180,10 @@ app.post("/api/files/move", async (req, res) => { //The route to change the loca
 
 app.post("/api/files/delete", async (req, res) => { //The route to delete a file
   try {
-    const response = await axios.delete(`${C_Server_Route}/api/files/upload/${req.body.fileId}`, {
-      headers: {
-        "key": API_KEY
-      }
+    const response = await axios({
+      method: "DELETE",
+      url: `${C_Server_Route}/api/files/delete/${req.body.fileId}`,
+      headers: { key: API_KEY },
     });
   } catch (error) {
     console.error("Error deleting the file:", error);
