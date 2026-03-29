@@ -1015,6 +1015,7 @@ int main(void)
             pqxx::result result;
             std::string file_location;
             std::string file_name;
+            std::string file_type;
 
             try {
                 result = DB_Open_Connection.exec_params(
@@ -1026,6 +1027,7 @@ int main(void)
 
                 file_location = result[0]["file_location"].c_str();
                 file_name = result[0]["file_name"].c_str();
+                file_type = result[0]["file_extension"].c_str();
             }
             catch (const std::exception& e) {
                 res.status = 500;
@@ -1045,7 +1047,12 @@ int main(void)
 
             try {
                 if (fs::exists(deletePath)) { //The reason that this action has a checked but not preovus actions is because deleting a file with an unkown path could cause uninted things therefore it is just better to check it
-                    fs::remove(deletePath); //Deletes the path
+                    if (file_type == "folder") {
+                        fs::remove_all(deletePath); //Deletes the folder and everything in it
+                    }
+                    else {
+                        fs::remove(deletePath); //Deletes the file
+                    }
                 }
                 else {
                     res.status = 500;
@@ -1065,7 +1072,7 @@ int main(void)
 
             try {
                 pqxx::result result = DB_Open_Connection.exec_params(
-                    "DELETE FROM files WHERE id = $1;",
+                    "DELETE FROM files WHERE id = $1 || '%';",
                     file_id_int
                 );
             }

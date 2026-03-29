@@ -178,13 +178,15 @@ app.post("/api/files/move/:file_id", async (req, res) => { //The route to change
 
 //Delete Routes
 
-app.post("/api/files/delete", async (req, res) => { //The route to delete a file
+app.post("/api/files/delete/:file_id", async (req, res) => { //The route to delete a file
   try {
+    const { file_id } = req.params;
     const response = await axios({
       method: "DELETE",
-      url: `${C_Server_Route}/api/files/delete/${req.body.fileId}`,
+      url: `${C_Server_Route}/api/files/delete/${file_id}`,
       headers: { key: API_KEY },
     });
+    res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
     console.error("Error deleting the file:", error);
     res.status(500).send("Error deleting the file");
