@@ -12,6 +12,7 @@ app.use("/api/files/upload", (req, res, next) => {
   next(); // do NOT attach body parsers here
 });
 
+app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
@@ -122,10 +123,24 @@ app.post("/api/files/upload/:user_id", async (req, res) => { //Uploads the given
 
 app.post("/api/files/create/:user_id", async (req, res) => { //Creates a new file with the given name and location
   try {
-    
+    const { user_id } = req.params;
+    const response = await axios({
+      method: "POST",
+      url: `${C_Server_Route}/api/files/create/${user_id}`,
+      data: {
+        new_name: req.body.new_name,
+        folder_path: req.body.folder_path,
+      },
+      headers: {
+        "Content-Type": "application/json",
+        key: API_KEY,
+      },
+    }); //Saves the axios response to a variable as well as sending the intial data and opening a stream to the C++ server
 
+    res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
-    
+    console.error("Error creating file:", error.message); //Displays the error message
+    res.status(500).send("Error creating a new file");
   }
 });
 
