@@ -62,6 +62,7 @@ const std::string UNFOUND_FILE_PATH = "The System was Unable to Find This File P
 const std::string UNABLE_TO_CREATE_FOLDER = "The System was Unable to Create a Folder;";
 const std::string UNOPEN_FILE = "The File Was Not Opened;";
 const std::string UNABLE_TO_UPLOAD_FILE = "The File Was Not Uploaded as it is a Duplicate;";
+const std::string DUPLICATE_FILE_NAME = "A File With This Name Already Exists in This Location;";
 
 //Global String Success
 const std::string GOOD_DB_CONNECTION = "Connected to PostgreSQL Server; API Path ";
@@ -707,8 +708,8 @@ int main(void)
                 if (!tmpResult.empty() || fs::exists(newPath)) { //Checks if the new name is a duplicate name (by using the database result and the local folders result)
                     DB_Open_Connection.commit();
                     res.status = 409;
-                    std::cout << "A File With This Name Already Exists in the Same Folder; API Path " << API_PATH << std::endl;
-                    res.set_content("A File With This Name Already Exists in the Same Folder", "text/plain");
+                    std::cout << DUPLICATE_FILE_NAME << API_PATH << std::endl;
+                    res.set_content(DUPLICATE_FILE_NAME, "text/plain");
                     return;
                 }
 
@@ -810,16 +811,14 @@ int main(void)
                     new_name = body["new_name"].get<std::string>();
                 }
 
-                //TO-DO: Check to make sure the file does not already exist by checking the database
-
                 pqxx::result tmpResult = DB_Open_Connection.exec_params(
                     "SELECT 1 FROM files WHERE user_id = $1 AND file_location = $2 AND file_name = $3 AND id <> $4 LIMIT 1;",
                     user_id_int, file_location, new_name, file_id_int);
                 if (!tmpResult.empty()) { //Checks if the new name is a duplicate name
                     DB_Open_Connection.commit();
                     res.status = 409;
-                    std::cout << "A File With This Name Already Exists in the Same Folder; API Path " << API_PATH << std::endl;
-                    res.set_content("A File With This Name Already Exists in the Same Folder", "text/plain");
+                    std::cout << DUPLICATE_FILE_NAME << API_PATH << std::endl;
+                    res.set_content(DUPLICATE_FILE_NAME, "text/plain");
                     return;
                 }
 
@@ -828,6 +827,14 @@ int main(void)
                 if (!build_safe_path(file_location, file_name, fullPath) || !build_safe_path(file_location, new_name, newPath)) {
                     res.status = 400;
                     res.set_content(BAD_PARAMATER, "text/plain");
+                    DB_Open_Connection.commit();
+                    return;
+                }
+
+                if (fs::exists(newPath)) { //Checks if a file with the same name already exists in the destination on the filesystem
+                    res.status = 409;
+                    std::cout << DUPLICATE_FILE_NAME << API_PATH << std::endl;
+                    res.set_content(DUPLICATE_FILE_NAME, "text/plain");
                     DB_Open_Connection.commit();
                     return;
                 }
@@ -948,6 +955,14 @@ int main(void)
                 return;
             }
 
+            if (fs::exists(newPath)) { //Checks if a file with the same name already exists in the destination on the filesystem
+                res.status = 409;
+                std::cout << DUPLICATE_FILE_NAME << API_PATH << std::endl;
+                res.set_content(DUPLICATE_FILE_NAME, "text/plain");
+                DB_Open_Connection.commit();
+                return;
+            }
+
             try {
                 fs::rename(oldPath, newPath); //moves the file
             }
@@ -957,6 +972,7 @@ int main(void)
                 res.set_content(UNABLE_TO_MOVE, "text/plain"); //Sends back error to Node.js backend
                 return;
             }
+
 
             try {
                 pqxx::result result = DB_Open_Connection.exec_params(
