@@ -2,6 +2,7 @@ import express from "express";
 import bodyParser from "body-parser";
 import axios from "axios";
 import dotenv from "dotenv";
+import bcrypt from "bcrypt";
 
 const app = express();
 const port = 3000;
@@ -37,16 +38,45 @@ app.get("/", async (req, res) => { //The base route
   res.send('API is running (This is the API for the local file upload app');
 });
 
-app.get("/api/login", async (req, res) => { //The route to login
+app.get("/api/signup", async (req, res) => { //The route to signup
+  password = await bcrypt.hash(req.body.password, 10); //Hashes the password using bcrypt before sending it to the C++ server
   try {
-    const response = await axios.get(`${C_Server_Route}/api/login`, {
+    const response = await axios({
+      method: "GET",
+      url: `${C_Server_Route}/api/user/signup`,
       headers: {
         "key": API_KEY
+      },
+      data: {
+        username: req.body.username,
+        email: req.body.email,
+        password: password
       }
     });
+    res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
-    console.error("Error downloading file:", error);
-    res.status(500).send("Error downloading file");
+    console.error("Error logging in:", error);
+    res.status(500).send("Error logging in");
+  }
+});
+
+app.get("/api/login", async (req, res) => { //The route to login
+  try {
+    const response = await axios({
+      method: "GET",
+      url: `${C_Server_Route}/api/login`,
+      headers: {
+        "key": API_KEY
+      },
+      data: {
+        username: req.body.username,
+        password: req.body.password
+      }
+    });
+    res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
+  } catch (error) {
+    console.error("Error logging in:", error);
+    res.status(500).send("Error logging in");
   }
 });
 
@@ -60,8 +90,8 @@ app.get("/api/files/name/:user_id", async (req, res) => { //The route to get the
     });
     res.json(response.data);
   } catch (error) {
-    console.error("Error retreving files:", error);
-    res.status(500).send("Error retreving files");
+    console.error("Error signing up:", error);
+    res.status(500).send("Error signing up");
   }
 
 });

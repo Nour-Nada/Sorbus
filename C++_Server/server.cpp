@@ -63,6 +63,7 @@ const std::string UNABLE_TO_CREATE_FOLDER = "The System was Unable to Create a F
 const std::string UNOPEN_FILE = "The File Was Not Opened;";
 const std::string UNABLE_TO_UPLOAD_FILE = "The File Was Not Uploaded as it is a Duplicate;";
 const std::string DUPLICATE_FILE_NAME = "A File With This Name Already Exists in This Location;";
+const std::string DUPLICATE_USER = "A User With This Username or Email Already Exists;";
 
 //Global String Success
 const std::string GOOD_DB_CONNECTION = "Connected to PostgreSQL Server; API Path ";
@@ -156,6 +157,83 @@ int main(void)
 
         // Auth Routes
 
+        svr.Post("/api/user/signup", [&](const httplib::Request& req, httplib::Response& res) { //Logging in a user
+            LOG_CALL();
+            std::string API_PATH = "GET: /api/user/signup";
+            std::string key = req.get_header_value("key");
+
+            nlohmann::json body;
+            try {
+                body = nlohmann::json::parse(req.body);
+            }
+            catch (const std::exception& e) {
+                res.status = 400;
+                std::cout << e.what() << std::endl;
+                res.set_content("Invalid JSON body", "text/plain");
+                return;
+            }
+
+            if (!body.contains("username")) {
+                res.status = 400;
+                res.set_content("Missing Username in Body", "text/plain");
+                return;
+            }
+            if (!body.contains("email")) {
+                res.status = 400;
+                res.set_content("Missing Email in Body", "text/plain");
+                return;
+            }
+            if (!body.contains("password")) {
+                res.status = 400;
+                res.set_content("Missing Password in Body", "text/plain");
+                return;
+            }
+
+            std::string username = body["username"].get<std::string>();
+            std::string email = body["email"].get<std::string>();
+            std::string password = body["password"].get<std::string>();
+
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
+            if (!DB_Connection.is_open()) {
+                res.status = 502;
+                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                res.set_content(BAD_DB_CONNECTION, "text/plain");
+                return;
+            }
+            else {
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+            }
+
+            pqxx::work DB_Open_Connection{ DB_Connection };
+            try {
+                pqxx::result dupResult = DB_Open_Connection.exec_params(
+                    "SELECT 1 FROM users WHERE name = $1 OR email = $2 LIMIT 1;",
+                    username, email); //Checks if a user with the same username or email already exists
+                if (!dupResult.empty()) {
+                    res.status = 409;
+                    std::cout << DUPLICATE_USER << API_PATH << std::endl;
+                    res.set_content(DUPLICATE_USER, "text/plain");
+                    DB_Open_Connection.commit();
+                    return;
+                }
+
+                pqxx::result result = DB_Open_Connection.exec_params(
+                    ("INSERT INTO users (name, email, password) VALUES ($1, $2, $3);", username, email, password)
+                );
+
+                DB_Open_Connection.commit();
+                res.status = 200;
+                res.set_content("{}", "application/json"); //API response
+            }
+            catch (const std::exception& e) {
+                res.status = 500;
+                std::cout << e.what() << std::endl;
+                res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+            }
+
+            return;
+        });
+
         //TO-DO: Add login and signup functionality
         svr.Post("/api/user/login", [&](const httplib::Request& req, httplib::Response& res) { //Logging in a user
             LOG_CALL();
@@ -175,11 +253,9 @@ int main(void)
 
                 pqxx::nontransaction DB_Open_Connection{ DB_Connection };
                 try {
-                    pqxx::result result = DB_Open_Connection.exec(
-                        pqxx::zview("Query Goes Here;")
+                    pqxx::result result = DB_Open_Connection.exec_params(
+                        pqxx::zview("INSERT INTO users () VALUES ();")
                     );
-
-                    //Code goes here
 
                     res.status = 200;
                     res.set_content("{}", "application/json"); //API response
@@ -189,42 +265,6 @@ int main(void)
                     std::cout << e.what() << std::endl;
                     res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
                 }
-
-            return;
-        });
-
-        svr.Post("/api/user/signup", [&](const httplib::Request& req, httplib::Response& res) { //Logging in a user
-            LOG_CALL();
-            std::string API_PATH = "GET: /api/login";
-            std::string key = req.get_header_value("key");
-
-            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-            if (!DB_Connection.is_open()) {
-                res.status = 502;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
-                return;
-            }
-            else {
-                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-            }
-
-            pqxx::nontransaction DB_Open_Connection{ DB_Connection };
-            try {
-                pqxx::result result = DB_Open_Connection.exec(
-                    pqxx::zview("Query Goes Here;")
-                );
-
-                //Code goes here
-
-                res.status = 200;
-                res.set_content("{}", "application/json"); //API response
-            }
-            catch (const std::exception& e) {
-                res.status = 500;
-                std::cout << e.what() << std::endl;
-                res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
-            }
 
             return;
         });
@@ -627,6 +667,8 @@ int main(void)
                     "INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES ($1, $2, $3, $4, $5);",
                         user_id_int, file_name, file_location, total_bytes, extension
                 ); //Adds the necessary information into the database that way the database and local storage stay updated
+
+                DB_Open_Connection.commit();
             }
             catch (const std::exception& e) {
                 res.status = 500;
