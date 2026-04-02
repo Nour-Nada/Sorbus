@@ -157,7 +157,7 @@ int main(void)
 
         // Auth Routes
 
-        svr.Post("/api/user/signup", [&](const httplib::Request& req, httplib::Response& res) { //Logging in a user
+        svr.Post("/api/user/signup", [&](const httplib::Request& req, httplib::Response& res) { //Signing up a user
             LOG_CALL();
             std::string API_PATH = "GET: /api/user/signup";
             std::string key = req.get_header_value("key");
@@ -235,7 +235,7 @@ int main(void)
         });
 
         //TO-DO: Add login and signup functionality
-        svr.Post("/api/user/login", [&](const httplib::Request& req, httplib::Response& res) { //Logging in a user
+        svr.Get("/api/user/login", [&](const httplib::Request& req, httplib::Response& res) { //Returns the hashed password for comparison
             LOG_CALL();
                 std::string API_PATH = "GET: /api/login";
                 std::string key = req.get_header_value("key");

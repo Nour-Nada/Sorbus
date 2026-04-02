@@ -38,7 +38,7 @@ app.get("/", async (req, res) => { //The base route
   res.send('API is running (This is the API for the local file upload app');
 });
 
-app.get("/api/signup", async (req, res) => { //The route to signup
+app.post("/api/signup", async (req, res) => { //The route to signup
   password = await bcrypt.hash(req.body.password, 10); //Hashes the password using bcrypt before sending it to the C++ server
   try {
     const response = await axios({
