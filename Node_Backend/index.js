@@ -69,10 +69,13 @@ app.get("/api/login", async (req, res) => { //The route to login
         "key": API_KEY
       },
       data: {
-        username: req.body.username,
-        password: req.body.password
+        username: req.body.username
       }
     });
+    const passwordMatch = await bcrypt.compare(req.body.password, response.data.password); //Compares the password from the frontend with the hashed password from the C++ server using bcrypt
+    if (!passwordMatch) {
+      return res.status(401).send("Invalid credentials");
+    }
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
     console.error("Error logging in:", error);

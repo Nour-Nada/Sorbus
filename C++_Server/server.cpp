@@ -223,7 +223,7 @@ int main(void)
 
                 DB_Open_Connection.commit();
                 res.status = 200;
-                res.set_content("{}", "application/json"); //API response
+                res.set_content("User Succsefully Signed Up", "text/plain"); //API response
             }
             catch (const std::exception& e) {
                 res.status = 500;
@@ -235,36 +235,44 @@ int main(void)
         });
 
         //TO-DO: Add login and signup functionality
-        svr.Get("/api/user/login", [&](const httplib::Request& req, httplib::Response& res) { //Returns the hashed password for comparison
+        svr.Get("/api/user/login/:username", [&](const httplib::Request& req, httplib::Response& res) { //Returns the hashed password for comparison
             LOG_CALL();
-                std::string API_PATH = "GET: /api/login";
-                std::string key = req.get_header_value("key");
 
-                pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-                if (!DB_Connection.is_open()) {
-                    res.status = 502;
-                    std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                    res.set_content(BAD_DB_CONNECTION, "text/plain");
-                    return;
-                }
-                else {
-                    std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+            std::string API_PATH = "GET: /api/login";
+            std::string key = req.get_header_value("key");
+            std::string username = req.path_params.at("username");
+
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
+            if (!DB_Connection.is_open()) {
+                res.status = 502;
+                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                res.set_content(BAD_DB_CONNECTION, "text/plain");
+                return;
+            }
+            else {
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+            }
+
+            pqxx::nontransaction DB_Open_Connection{ DB_Connection };
+            try {
+                pqxx::result result = DB_Open_Connection.exec_params(
+                    ("SELECT password WHERE name = $1 OR email = $2", username, username)
+                );
+
+                if (!result.empty()) {
+                    res.status = 401;
+                    res.set_content("User Does Not Exist", "text/plain"); //API response
                 }
 
-                pqxx::nontransaction DB_Open_Connection{ DB_Connection };
-                try {
-                    pqxx::result result = DB_Open_Connection.exec_params(
-                        pqxx::zview("INSERT INTO users () VALUES ();")
-                    );
-
-                    res.status = 200;
-                    res.set_content("{}", "application/json"); //API response
-                }
-                catch (const std::exception& e) {
-                    res.status = 500;
-                    std::cout << e.what() << std::endl;
-                    res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
-                }
+                std::string password = result[0]["password"].c_str();
+                res.status = 200;
+                res.set_content(password, "text/plain"); //API response
+            }
+            catch (const std::exception& e) {
+                res.status = 500;
+                std::cout << e.what() << std::endl;
+                res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+            }
 
             return;
         });
@@ -493,10 +501,10 @@ int main(void)
             res.set_header("Content-Disposition",
                 "attachment; filename=\"" + fs::path(file_path).filename().string() + "\"");
 
-            //Returns the downlad in chunks
+            //Returns the download in chunks
             res.set_chunked_content_provider(
                 "application/octet-stream",
-                [file](size_t, httplib::DataSink& sink) mutable { //The C++ server libares syntax for chunking data to send
+                [file](size_t, httplib::DataSink& sink) mutable { //The C++ server libraires syntax for chunking data to send
                     const size_t CHUNK_SIZE = 64 * 1024; // 64 KB
                     char buffer[CHUNK_SIZE];
 
