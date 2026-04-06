@@ -29,7 +29,8 @@ const C_Server_Route = process.env.C_Server_Route;
 
 
 
-//Backend Routes
+//Basic Functionality Backend Routes
+
 
 
 //Get Routes
@@ -225,6 +226,30 @@ app.post("/api/files/delete/:file_id", async (req, res) => { //The route to dele
     res.status(500).send("Error deleting the file");
   }
 });
+
+
+
+
+
+//Extra Functionality Backend Routes
+
+
+
+app.post("/api/files/delete/:file_id", async (req, res) => { //
+  try {
+    const response = await axios({
+      method: "DELETE",
+      url: `${C_Server_Route}/api/files/delete/${file_id}`,
+      headers: { key: API_KEY },
+    });
+    res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
+  } catch (error) {
+    
+  }
+});
+
+
+
 
 
 //Fallback route

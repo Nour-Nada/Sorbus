@@ -9,6 +9,7 @@
 #include <ctime>
 #include <iomanip>
 #include <atomic>
+#include <shared_mutex>
 #include <cstdlib>
 
 //Download System Headers
@@ -38,15 +39,31 @@ const std::string API_KEY = []() {
     return (value && *value) ? std::string(value) : "test12345";
 }(); //The API key
 const std::string OUTPUT_FILE = "server_output.txt"; //Where the print statements, errors, and more gets outputted to in deployment
+
+std::shared_mutex FILE_LOCATION_MUTEX; //Mutex to protect the file location string from concurrent read/write access across threads
 std::string FILE_LOCATION = []() {
     const char* value = std::getenv("FILEAPP_FILE_LOCATION");
     return (value && *value) ? std::string(value) : "C:/Users/nour2/Videos/Test";
 }(); //The location of the stored files
+
+std::string get_file_location() { // Reads the file location safely across threads
+    std::shared_lock lock(FILE_LOCATION_MUTEX);
+    return FILE_LOCATION_VALUE;
+}
+
+void set_file_location(const std::string& new_location) { // Updates the file location safely across threads
+    std::unique_lock lock(FILE_LOCATION_MUTEX);
+    FILE_LOCATION_VALUE = new_location;
+}
+
+//Database Connection Information
 const std::string DB_CONNECTION_STRING = []() {
     const char* value = std::getenv("FILEAPP_DB_CONNECTION");
     return (value && *value) ? std::string(value)
         : "dbname=pyrus user=postgres password=REDACTED host=localhost";
 }();
+
+
 std::atomic<int> api_traffic_count{ 0 }; //Counts how many API calls are made to valid endpoints while the server is still open
 
 //Global String Errors
@@ -96,7 +113,7 @@ static bool is_path_within_base(const fs::path& base, const fs::path& target) { 
 }
 
 static bool build_safe_path(const std::string& location, const std::string& leaf_name, fs::path& out_path) {  //Creates a safe path when given the file_location and file_name. And accordingly chanes out_path to match this (a safe path is necessary for the C++ 17 filesystem library features)
-    const fs::path base(FILE_LOCATION);
+    const fs::path base(get_file_location());
     fs::path candidate = base / trim_leading_separators(location);
     if (!leaf_name.empty()) {
         candidate /= leaf_name;
@@ -115,6 +132,7 @@ static bool build_safe_path(const std::string& location, const std::string& leaf
 
 int main(void)
 {
+
     //Opens up the file to which the output will be redirected
     std::ofstream logFile(OUTPUT_FILE, std::ios::app);
     /* //Currently commented out so I can see the output in the console however in deployment this will be un commented
@@ -572,8 +590,8 @@ int main(void)
             if (file_location == "/") {
                 file_location = "";
             }
-            std::string file_path_check = FILE_LOCATION + file_location;
-            std::string file_path = FILE_LOCATION + file_location + "/" + file_name;
+            std::string file_path_check = get_file_location() + file_location;
+            std::string file_path = get_file_location() + file_location + "/" + file_name;
             if (!std::filesystem::exists(file_path_check)) {
                 res.status = 409;
                 std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
