@@ -39,10 +39,10 @@ app.get("/", async (req, res) => { //The base route
 });
 
 app.post("/api/signup", async (req, res) => { //The route to signup
-  password = await bcrypt.hash(req.body.password, 10); //Hashes the password using bcrypt before sending it to the C++ server
+  const password = await bcrypt.hash(req.body.password, 10); //Hashes the password using bcrypt before sending it to the C++ server
   try {
     const response = await axios({
-      method: "GET",
+      method: "POST",
       url: `${C_Server_Route}/api/user/signup`,
       headers: {
         "key": API_KEY
