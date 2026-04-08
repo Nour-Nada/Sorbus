@@ -239,9 +239,25 @@ app.post("/api/files/delete/:file_id", async (req, res) => { //The route to dele
 
 app.post("/api/features/reinitialize/:user_id", async (req, res) => { //Reinitializing the files in the current location
   try {
+    const { user_id } = req.params;
     const response = await axios({
       method: "DELETE",
-      url: `${C_Server_Route}/api/files/delete/${file_id}`,
+      url: `${C_Server_Route}/api/features/reinitialize/${user_id}`,
+      headers: { key: API_KEY },
+    });
+    res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
+  } catch (error) {
+    
+  }
+});
+
+app.post("/api/features/location/:user_id", async (req, res) => { //Changing the file location that is displayed
+  try {
+    const { user_id } = req.params;
+    const response = await axios({
+      method: "PATCH",
+      url: `${C_Server_Route}/api/features/location/${user_id}`,
+      data: { new_location: req.body.new_location },
       headers: { key: API_KEY },
     });
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server

@@ -48,13 +48,18 @@ std::string FILE_LOCATION = []() {
 
 std::string get_file_location() { // Reads the file location safely across threads
     std::shared_lock lock(FILE_LOCATION_MUTEX);
-    return FILE_LOCATION_VALUE;
+    return FILE_LOCATION;
 }
 
 void set_file_location(const std::string& new_location) { // Updates the file location safely across threads
     std::unique_lock lock(FILE_LOCATION_MUTEX);
-    FILE_LOCATION_VALUE = new_location;
+    FILE_LOCATION = new_location;
 }
+
+const int MAX_FILES = []() { //Maximum number of files allowed in the storage location this is to prevent the server from crashing
+    const char* value = std::getenv("FILEAPP_MAX_FILES");
+    return (value && *value) ? std::stoi(value) : 100000;
+}(); //The maximum number of files allowed in the storage location
 
 //Database Connection Information
 const std::string DB_CONNECTION_STRING = []() {
@@ -1179,7 +1184,7 @@ int main(void)
 
         svr.Patch("/api/features/reinitialize/:user_id", [](const httplib::Request& req, httplib::Response& res) { //Reinitializing the files in the current location
             LOG_CALL();
-            std::string API_PATH = "PATCH: /api/files/name";
+            std::string API_PATH = "PATCH: /api/features/reinitialize";
             std::string key = req.get_header_value("key");
             std::string user_id = req.path_params.at("user_id");
             
@@ -1235,7 +1240,67 @@ int main(void)
             }
 
             return;
-            });
+           });
+
+        svr.Patch("/api/features/location/:user_id", [](const httplib::Request& req, httplib::Response& res) { //Changing the file location that is displayed
+            LOG_CALL();
+            std::string API_PATH = "PATCH: /api/features/location";
+            std::string key = req.get_header_value("key");
+            std::string user_id = req.path_params.at("user_id");
+
+            int user_id_int = 0;
+            try {
+                user_id_int = std::stoi(user_id);
+            }
+            catch (const std::invalid_argument& e) {
+                res.status = 400;
+                std::cout << e.what() << std::endl;
+                res.set_content(BAD_PARAMATER, "text/plain");
+                return;
+            }
+
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
+            if (!DB_Connection.is_open()) {
+                res.status = 502;
+                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                res.set_content(BAD_DB_CONNECTION, "text/plain");
+                return;
+            }
+            else {
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+            }
+
+            pqxx::work DB_Open_Connection{ DB_Connection };
+            try {
+                pqxx::result result = DB_Open_Connection.exec_params(
+                    ";"); //selects the file we want to rename
+                if (result.empty()) { //Checks to ensure the file exists
+                    throw std::runtime_error(DB_QUERY_ERROR);
+                }
+
+                pqxx::result tmpResult = DB_Open_Connection.exec_params(
+                    ";");
+                if (!tmpResult.empty()) { //Checks if the new name is a duplicate name
+                    DB_Open_Connection.commit();
+                    res.status = 409;
+                    std::cout << DUPLICATE_FILE_NAME << API_PATH << std::endl;
+                    res.set_content(DUPLICATE_FILE_NAME, "text/plain");
+                    return;
+                }
+
+                DB_Open_Connection.commit();
+
+                res.status = 200;
+                res.set_content("File Successfully Renamed", "text/plain"); //API response
+            }
+            catch (const std::exception& e) {
+                res.status = 500;
+                std::cout << e.what() << std::endl;
+                res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+            }
+
+            return;
+        });
 
 
         //Fallback route
