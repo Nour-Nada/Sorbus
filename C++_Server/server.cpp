@@ -252,7 +252,6 @@ int main(void)
             return;
         });
 
-        //TO-DO: Add login and signup functionality
         svr.Get("/api/user/login/:username", [&](const httplib::Request& req, httplib::Response& res) { //Returns the hashed password for comparison
             LOG_CALL();
 
@@ -781,6 +780,11 @@ int main(void)
                     return;
                 }
 
+                pqxx::result result = DB_Open_Connection.exec_params(
+                    "INSERT INTO files (user_id, file_name, file_location, file_extension, file_size) VALUES ($1, $2, $3, $4, $5);",
+                    user_id_int, new_name, folder_path, "folder", -1
+                ); //Inserts the new folder into the database
+
                 try {
                     fs::create_directory(newPath); //Creates the new folder
                 }
@@ -790,12 +794,6 @@ int main(void)
                     res.set_content(UNABLE_TO_CREATE_FOLDER, "text/plain"); //Sends back error to Node.js backend
                     return;
                 }
-
-
-                pqxx::result result = DB_Open_Connection.exec_params(
-                    "INSERT INTO files (user_id, file_name, file_location, file_extension, file_size) VALUES ($1, $2, $3, $4, $5);",
-                    user_id_int, new_name, folder_path, "folder", -1
-                ); //Inserts the new folder into the database
 
                 DB_Open_Connection.commit();
 
@@ -908,16 +906,6 @@ int main(void)
                 }
 
                 try {
-                    fs::rename(fullPath, newPath);
-                } catch (const std::exception& e) {
-                    res.status = 500;
-                    std::cout << e.what() << std::endl;
-                    res.set_content(UNABLE_TO_RENAME, "text/plain"); //Sends back error to Node.js backend
-                    DB_Open_Connection.commit();
-                    return;
-                }
-
-                try {
                     DB_Open_Connection.exec_params(
                         "UPDATE files SET file_name = $1 WHERE id = $2;",
                         new_name, file_id_int);
@@ -927,8 +915,20 @@ int main(void)
                     std::cout << e.what() << std::endl;
                     res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
                     DB_Open_Connection.commit();
+                    return;
                 }
 
+                try {
+                    fs::rename(fullPath, newPath);
+                } catch (const std::exception& e) {
+                    res.status = 500;
+                    std::cout << e.what() << std::endl;
+                    res.set_content(UNABLE_TO_RENAME, "text/plain"); //Sends back error to Node.js backend
+                    DB_Open_Connection.commit();
+                    return;
+                }
+
+                
                 DB_Open_Connection.commit();
 
                 res.status = 200;
@@ -1032,17 +1032,6 @@ int main(void)
             }
 
             try {
-                fs::rename(oldPath, newPath); //moves the file
-            }
-            catch (const std::exception& e) {
-                res.status = 500;
-                std::cout << e.what() << std::endl;
-                res.set_content(UNABLE_TO_MOVE, "text/plain"); //Sends back error to Node.js backend
-                return;
-            }
-
-
-            try {
                 pqxx::result result = DB_Open_Connection.exec_params(
                     "UPDATE files SET file_location = $1 WHERE id = $2;",
                         new_file_location,
@@ -1053,6 +1042,16 @@ int main(void)
                 std::cout << e.what() << std::endl;
                 res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
                 DB_Open_Connection.commit();
+                return;
+            }
+
+            try {
+                fs::rename(oldPath, newPath); //moves the file
+            }
+            catch (const std::exception& e) {
+                res.status = 500;
+                std::cout << e.what() << std::endl;
+                res.set_content(UNABLE_TO_MOVE, "text/plain"); //Sends back error to Node.js backend
                 return;
             }
 
@@ -1130,6 +1129,20 @@ int main(void)
             }
 
             try {
+                pqxx::result result = DB_Open_Connection.exec_params(
+                    "DELETE FROM files WHERE id = $1 || '%';",
+                    file_id_int
+                );
+            }
+            catch (const std::exception& e) {
+                res.status = 500;
+                std::cout << e.what() << std::endl;
+                res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+                DB_Open_Connection.commit();
+                return;
+            }
+
+            try {
                 if (fs::exists(deletePath)) { //The reason that this action has a checked but not preovus actions is because deleting a file with an unkown path could cause uninted things therefore it is just better to check it
                     if (file_type == "folder") {
                         fs::remove_all(deletePath); //Deletes the folder and everything in it
@@ -1154,26 +1167,75 @@ int main(void)
                 return;
             }
 
-            try {
-                pqxx::result result = DB_Open_Connection.exec_params(
-                    "DELETE FROM files WHERE id = $1 || '%';",
-                    file_id_int
-                );
-            }
-            catch (const std::exception& e) {
-                res.status = 500;
-                std::cout << e.what() << std::endl;
-                res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
-                DB_Open_Connection.commit();
-                return;
-            }
-
             res.status = 200;
             res.set_content("File Successfully Deleted", "text/plain"); //API response
 
             DB_Open_Connection.commit();
             return;
         });
+
+
+        //Extra Features
+
+        svr.Patch("/api/features/reinitialize/:user_id", [](const httplib::Request& req, httplib::Response& res) { //Reinitializing the files in the current location
+            LOG_CALL();
+            std::string API_PATH = "PATCH: /api/files/name";
+            std::string key = req.get_header_value("key");
+            std::string user_id = req.path_params.at("user_id");
+            
+            int user_id_int = 0;
+            try {
+                user_id_int = std::stoi(user_id);
+            }
+            catch (const std::invalid_argument& e) {
+                res.status = 400;
+                std::cout << e.what() << std::endl;
+                res.set_content(BAD_PARAMATER, "text/plain");
+                return;
+            }
+
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
+            if (!DB_Connection.is_open()) {
+                res.status = 502;
+                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                res.set_content(BAD_DB_CONNECTION, "text/plain");
+                return;
+            }
+            else {
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+            }
+
+            pqxx::work DB_Open_Connection{ DB_Connection };
+            try {
+                pqxx::result result = DB_Open_Connection.exec_params(
+                    ";"); //selects the file we want to rename
+                if (result.empty()) { //Checks to ensure the file exists
+                    throw std::runtime_error(DB_QUERY_ERROR);
+                }
+
+                pqxx::result tmpResult = DB_Open_Connection.exec_params(
+                    ";");
+                if (!tmpResult.empty()) { //Checks if the new name is a duplicate name
+                    DB_Open_Connection.commit();
+                    res.status = 409;
+                    std::cout << DUPLICATE_FILE_NAME << API_PATH << std::endl;
+                    res.set_content(DUPLICATE_FILE_NAME, "text/plain");
+                    return;
+                }
+
+                DB_Open_Connection.commit();
+
+                res.status = 200;
+                res.set_content("File Successfully Renamed", "text/plain"); //API response
+            }
+            catch (const std::exception& e) {
+                res.status = 500;
+                std::cout << e.what() << std::endl;
+                res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+            }
+
+            return;
+            });
 
 
         //Fallback route

@@ -235,7 +235,9 @@ app.post("/api/files/delete/:file_id", async (req, res) => { //The route to dele
 
 
 
-app.post("/api/files/delete/:file_id", async (req, res) => { //
+//Patch Routes
+
+app.post("/api/features/reinitialize/:user_id", async (req, res) => { //Reinitializing the files in the current location
   try {
     const response = await axios({
       method: "DELETE",
