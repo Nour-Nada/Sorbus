@@ -39,9 +39,9 @@ app.get("/", async (req, res) => { //The base route
   res.send('API is running (This is the API for the local file upload app');
 });
 
-app.post("/api/signup", async (req, res) => { //The route to signup
-  const password = await bcrypt.hash(req.body.password, 10); //Hashes the password using bcrypt before sending it to the C++ server
+app.post("/api/user/signup", async (req, res) => { //The route to signup
   try {
+    const password = await bcrypt.hash(req.body.password, 10); //Hashes the password using bcrypt before sending it to the C++ server
     const response = await axios({
       method: "POST",
       url: `${C_Server_Route}/api/user/signup`,
@@ -61,19 +61,20 @@ app.post("/api/signup", async (req, res) => { //The route to signup
   }
 });
 
-app.get("/api/login", async (req, res) => { //The route to login
+app.get("/api/user/login/:username", async (req, res) => { //The route to login
   try {
+    const {username} = req.params;
     const response = await axios({
       method: "GET",
-      url: `${C_Server_Route}/api/login`,
+      url: `${C_Server_Route}/api/user/login/${username}`,
       headers: {
         "key": API_KEY
       },
       data: {
-        username: req.body.username
+        username: username
       }
     });
-    const passwordMatch = await bcrypt.compare(req.body.password, response.data.password); //Compares the password from the frontend with the hashed password from the C++ server using bcrypt
+    const passwordMatch = await bcrypt.compare(req.body.password, response.data); //Compares the password from the frontend with the hashed password from the C++ server using bcrypt
     if (!passwordMatch) {
       return res.status(401).send("Invalid credentials");
     }

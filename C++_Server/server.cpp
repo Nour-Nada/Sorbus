@@ -278,12 +278,13 @@ int main(void)
             pqxx::nontransaction DB_Open_Connection{ DB_Connection };
             try {
                 pqxx::result result = DB_Open_Connection.exec_params(
-                    ("SELECT password WHERE name = $1 OR email = $2", username, username)
+                    "SELECT password FROM users WHERE name = $1 OR email = $2", username, username
                 );
 
-                if (!result.empty()) {
+                if (result.empty()) {
                     res.status = 401;
                     res.set_content("User Does Not Exist", "text/plain"); //API response
+                    return;
                 }
 
                 std::string password = result[0]["password"].c_str();
@@ -1135,7 +1136,7 @@ int main(void)
 
             try {
                 pqxx::result result = DB_Open_Connection.exec_params(
-                    "DELETE FROM files WHERE id = $1 || '%';",
+                    "DELETE FROM files WHERE id = $1;",
                     file_id_int
                 );
             }
