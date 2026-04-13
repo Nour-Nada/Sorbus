@@ -70,6 +70,19 @@ const std::string DB_CONNECTION_STRING = []() {
 
 
 std::atomic<int> api_traffic_count{ 0 }; //Counts how many API calls are made to valid endpoints while the server is still open
+std::atomic<int> current_file_count{ 0 }; //Tracks the current number of non-folder files stored across all users, initialized from the database on startup
+
+void initialize_file_count() { //Sets current_file_count to the number of files in the database excluding folders
+    try {
+        pqxx::connection conn(DB_CONNECTION_STRING);
+        pqxx::work txn(conn);
+        pqxx::result result = txn.exec("SELECT COUNT(*) FROM files WHERE file_extension != 'folder';");
+        current_file_count.store(result[0][0].as<int>(), std::memory_order_relaxed);
+        txn.commit();
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to initialize file count: " << e.what() << std::endl;
+    }
+}
 
 //Global String Errors
 const std::string BAD_DB_CONNECTION = "Cannot Connect to Database;";
@@ -86,6 +99,7 @@ const std::string UNOPEN_FILE = "The File Was Not Opened;";
 const std::string UNABLE_TO_UPLOAD_FILE = "The File Was Not Uploaded as it is a Duplicate;";
 const std::string DUPLICATE_FILE_NAME = "A File With This Name Already Exists in This Location;";
 const std::string DUPLICATE_USER = "A User With This Username or Email Already Exists;";
+const std::string TOO_MANY_FILES = "The Maximum Number of Files Has Been Reached;";
 
 //Global String Success
 const std::string GOOD_DB_CONNECTION = "Connected to PostgreSQL Server; API Path ";
@@ -137,6 +151,8 @@ static bool build_safe_path(const std::string& location, const std::string& leaf
 
 int main(void)
 {
+
+    initialize_file_count(); //Loads the current file count from the database before the server starts accepting requests
 
     //Opens up the file to which the output will be redirected
     std::ofstream logFile(OUTPUT_FILE, std::ios::app);
@@ -603,6 +619,13 @@ int main(void)
             std::string user_id = req.path_params.at("user_id");
             std::string file_name;
             std::string file_location;
+
+            if (CURRENT_FILE_COUNT >= MAX_FILES) {
+                res.status = 507;
+                std::cout << TOO_MANY_FILES << API_PATH << std::endl;
+                res.set_content(TOO_MANY_FILES, "text/plain");
+                return;
+            }
 
             int user_id_int = 0;
             try {
