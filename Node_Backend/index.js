@@ -93,6 +93,7 @@ app.get("/api/files/name/:user_id", async (req, res) => { //The route to get the
         "key": API_KEY
       }
     });
+    res.status(response.status);
     res.json(response.data);
   } catch (error) {
     console.error("Error signing up:", error);
@@ -110,12 +111,30 @@ app.get("/api/files/download/:file_id", async (req, res) => { //The route to get
       },
       responseType: "stream"
     }); //Sets reponse equal to API call as well as calling the C++ server API
+    res.status(response.status); //Sets the status to the status of the response from the C++ server
     response.data.pipe(res); //Uses response to pipe the data from the frontend to the C++ server
 
   } catch (error) {
     console.error("Error downloading file:", error);
     res.status(500).send("Error downloading file");
   }
+});
+
+app.get("/api/files/storage", async (req, res) => { //The route to get the storage left on the disk
+  const {user_id} = req.params;
+  try {
+    const response = await axios.get(`${C_Server_Route}/api/files/storage`, {
+      headers: {
+        "key": API_KEY
+      }
+    });
+    res.status(response.status);
+    res.send(response.data);
+  } catch (error) {
+    console.error("Error retrieving remaining storage on the disk:", error);
+    res.status(500).send("Error retrieving remaining storage on the disk");
+  }
+
 });
 
 

@@ -261,7 +261,6 @@ int main(void)
             LOG_CALL();
 
             std::string API_PATH = "GET: /api/login";
-            std::string key = req.get_header_value("key");
             std::string username = req.path_params.at("username");
 
             pqxx::connection DB_Connection(DB_CONNECTION_STRING);
@@ -306,7 +305,6 @@ int main(void)
         svr.Get("/api/files/name/:user_id", [&](const httplib::Request& req, httplib::Response& res) { //Retrieving file names
             LOG_CALL();
             std::string API_PATH = "GET: /api/files/name"; //Path in variable for error messages
-            std::string key = req.get_header_value("key");
             std::string user_id = req.path_params.at("user_id");
 
             int user_id_int = 0;
@@ -387,7 +385,6 @@ int main(void)
         svr.Get("/api/files/download/:file_id", [](const httplib::Request& req, httplib::Response& res) { //Downloading a file or folder
             LOG_CALL();
             std::string API_PATH = "GET: /api/files/download";
-            std::string key = req.get_header_value("key");
             std::string file_id = req.path_params.at("file_id");
 
             int file_id_int = 0;
@@ -559,13 +556,50 @@ int main(void)
             return;
         });
 
+        svr.Get("/api/files/storage", [&](const httplib::Request& req, httplib::Response& res) { //Retrieving the storage left on the disk
+            LOG_CALL();
+            std::string API_PATH = "GET: /api/files/storage"; //Path in variable for error messages
+
+            fs::space_info space = fs::space(get_file_location());
+            uintmax_t available = space.available; // bytes available
+
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
+            if (!DB_Connection.is_open()) {
+                res.status = 502;
+                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                res.set_content(BAD_DB_CONNECTION, "text/plain");
+                return;
+            }
+            else {
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+            }
+
+            pqxx::work DB_Open_Connection{ DB_Connection };
+            try {
+                pqxx::result result = DB_Open_Connection.exec_params(
+                    "UPDATE server_info SET storage_space_remaining = $1 WHERE id = 1;", available
+                );
+
+                nlohmann::json tree = nlohmann::json::object(); //Creates JSON object
+                nlohmann::json file_ids = nlohmann::json::object();
+
+                res.status = 200;
+                res.set_content(std::to_string(available), "text/plain"); //API response
+            }
+            catch (const std::exception& e) {
+                res.status = 500;
+                std::cout << e.what() << std::endl;
+                res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+            }
+            return;
+        });
+
 
         // Post Routes
         
         svr.Post("/api/files/upload/:user_id", [](const httplib::Request& req, httplib::Response& res, const httplib::ContentReader& content_reader) { //Uploading a file
             LOG_CALL();
             std::string API_PATH = "POST: /api/files/upload";
-            std::string key = req.get_header_value("key");
             std::string user_id = req.path_params.at("user_id");
             std::string file_name;
             std::string file_location;
@@ -716,7 +750,6 @@ int main(void)
         svr.Post("/api/files/create/:user_id", [](const httplib::Request& req, httplib::Response& res) { //Creating an empty folder
             LOG_CALL();
             std::string API_PATH = "POST: /api/files/create";
-            std::string key = req.get_header_value("key");
             std::string user_id = req.path_params.at("user_id");
 
             int user_id_int = 0;
@@ -820,7 +853,6 @@ int main(void)
         svr.Patch("/api/files/name/:file_id", [](const httplib::Request& req, httplib::Response& res) { //Renaming a file
             LOG_CALL();
             std::string API_PATH = "PATCH: /api/files/name";
-            std::string key = req.get_header_value("key");
             std::string file_id = req.path_params.at("file_id");
             std::string new_name;
 
@@ -952,7 +984,6 @@ int main(void)
         svr.Patch("/api/files/move/:file_id", [](const httplib::Request& req, httplib::Response& res) { //Moving a file
             LOG_CALL();
             std::string API_PATH = "PATCH: /api/files/move";
-            std::string key = req.get_header_value("key");
             std::string file_id = req.path_params.at("file_id");
 
             int file_id_int = 0;
@@ -1074,7 +1105,6 @@ int main(void)
 
         svr.Delete("/api/files/delete/:file_id", [](const httplib::Request& req, httplib::Response& res) { //Deletes a file
             std::string API_PATH = "DELETE: /api/files/delete";
-            std::string key = req.get_header_value("key");
             std::string file_id = req.path_params.at("file_id");
 
             int file_id_int = 0;
@@ -1186,7 +1216,6 @@ int main(void)
         svr.Patch("/api/features/reinitialize/:user_id", [](const httplib::Request& req, httplib::Response& res) { //Reinitializing the files in the current location
             LOG_CALL();
             std::string API_PATH = "PATCH: /api/features/reinitialize";
-            std::string key = req.get_header_value("key");
             std::string user_id = req.path_params.at("user_id");
             
             int user_id_int = 0;
@@ -1246,7 +1275,6 @@ int main(void)
         svr.Patch("/api/features/location/:user_id", [](const httplib::Request& req, httplib::Response& res) { //Changing the file location that is displayed
             LOG_CALL();
             std::string API_PATH = "PATCH: /api/features/location";
-            std::string key = req.get_header_value("key");
             std::string user_id = req.path_params.at("user_id");
 
             int user_id_int = 0;
@@ -1310,6 +1338,8 @@ int main(void)
             std::string api_error = "Endpoint not Found | or | An Uncaught Error Occurred";
             res.set_content(api_error, "text/plain");
         });
+
+
 
     } catch (const std::exception& e) {
         std::cout << e.what() << std::endl;

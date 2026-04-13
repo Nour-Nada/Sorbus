@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT NOT NULL UNIQUE,
     email TEXT NOT NULL UNIQUE,
     password TEXT NOT NULL,
+    access TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -79,7 +80,7 @@ INSERT INTO server_info (server_status, register_key, storage_space_remaining) V
 
 
 --Inserting Data Tests--
-INSERT INTO users (email, password) VALUES ('test', 'password123'); --Inserting new user--
+INSERT INTO users (email, username, password, access) VALUES ('test', 'testuser', 'password123', 'owner'); --Inserting new user--
 INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES
 (3, 'test1.txt', '/', 10, '.txt'),
 (3, 'test2.txt', '/', 10, '.txt'),
