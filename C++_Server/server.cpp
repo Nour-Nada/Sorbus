@@ -100,6 +100,7 @@ const std::string UNABLE_TO_UPLOAD_FILE = "The File Was Not Uploaded as it is a 
 const std::string DUPLICATE_FILE_NAME = "A File With This Name Already Exists in This Location;";
 const std::string DUPLICATE_USER = "A User With This Username or Email Already Exists;";
 const std::string TOO_MANY_FILES = "The Maximum Number of Files Has Been Reached;";
+const std::string MISSING_BODY_PARAM = "The Information Sent is Missing Something;";
 
 //Global String Success
 const std::string GOOD_DB_CONNECTION = "Connected to PostgreSQL Server; API Path ";
@@ -214,23 +215,33 @@ int main(void)
 
             if (!body.contains("username")) {
                 res.status = 400;
+                std::cout << MISSING_BODY_PARAM << API_PATH << std::endl;
                 res.set_content("Missing Username in Body", "text/plain");
                 return;
             }
             if (!body.contains("email")) {
                 res.status = 400;
+                std::cout << MISSING_BODY_PARAM << API_PATH << std::endl;
                 res.set_content("Missing Email in Body", "text/plain");
                 return;
             }
             if (!body.contains("password")) {
                 res.status = 400;
+                std::cout << MISSING_BODY_PARAM << API_PATH << std::endl;
                 res.set_content("Missing Password in Body", "text/plain");
+                return;
+            }
+            if (!body.contains("reg_key")) {
+                res.status = 400;
+                std::cout << MISSING_BODY_PARAM << API_PATH << std::endl;
+                res.set_content("Missing registration key in Body", "text/plain");
                 return;
             }
 
             std::string username = body["username"].get<std::string>();
             std::string email = body["email"].get<std::string>();
             std::string password = body["password"].get<std::string>();
+            std::string reg_key = body["reg_key"].get<std::string>();
 
             pqxx::connection DB_Connection(DB_CONNECTION_STRING);
             if (!DB_Connection.is_open()) {
@@ -245,8 +256,19 @@ int main(void)
 
             pqxx::work DB_Open_Connection{ DB_Connection };
             try {
+                pqxx::result key_check = DB_Open_Connection.exec(
+                    "SELECT register_key FROM server_info"
+                );
+
+                if (key_check[0][0].as<std::string>() != reg_key) {
+                    res.status = 401;
+                    std::cout << "The Registration Key is Incorrect;" << API_PATH << std::endl;
+                    res.set_content("Registration key is incorrect", "text/plain");
+                    return;
+                }
+
                 pqxx::result dupResult = DB_Open_Connection.exec_params(
-                    "SELECT 1 FROM users WHERE name = $1 OR email = $2 LIMIT 1;",
+                    "SELECT 1 FROM users WHERE username = $1 OR email = $2 LIMIT 1;",
                     username, email); //Checks if a user with the same username or email already exists
                 if (!dupResult.empty()) {
                     res.status = 409;
@@ -256,13 +278,17 @@ int main(void)
                     return;
                 }
 
-                pqxx::result result = DB_Open_Connection.exec_params(
-                    ("INSERT INTO users (name, email, password) VALUES ($1, $2, $3);", username, email, password)
-                );
+                pqxx::result is_empty = DB_Open_Connection.exec("SELECT 1 FROM users LIMIT 1;"); //Checks if this is the first user
+
+                std::string access = is_empty.empty() ? "owner" : "viewer"; //First user becomes owner, all subsequent users are viewers
+
+                DB_Open_Connection.exec_params(
+                    "INSERT INTO users (username, email, password, access) VALUES ($1, $2, $3, $4);",
+                    username, email, password, access);
 
                 DB_Open_Connection.commit();
                 res.status = 200;
-                res.set_content("User Succsefully Signed Up", "text/plain"); //API response
+                res.set_content("User Successfully Signed Up", "text/plain"); //API response
             }
             catch (const std::exception& e) {
                 res.status = 500;
@@ -620,7 +646,7 @@ int main(void)
             std::string file_name;
             std::string file_location;
 
-            if (CURRENT_FILE_COUNT >= MAX_FILES) {
+            if (current_file_count >= MAX_FILES) {
                 res.status = 507;
                 std::cout << TOO_MANY_FILES << API_PATH << std::endl;
                 res.set_content(TOO_MANY_FILES, "text/plain");

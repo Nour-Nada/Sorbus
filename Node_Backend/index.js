@@ -51,7 +51,8 @@ app.post("/api/user/signup", async (req, res) => { //The route to signup
       data: {
         username: req.body.username,
         email: req.body.email,
-        password: password
+        password: password,
+        reg_key: req.body.reg_key
       }
     });
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
