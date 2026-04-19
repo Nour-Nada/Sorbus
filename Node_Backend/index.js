@@ -103,10 +103,10 @@ app.get("/api/files/name/:user_id", async (req, res) => { //The route to get the
 
 });
 
-app.get("/api/files/download/:file_id", async (req, res) => { //The route to get the file to download
+app.get("/api/files/download/:file_id/:user_id", async (req, res) => { //The route to get the file to download
   try {
-    const {file_id} = req.params;
-    const response = await axios.get(`${C_Server_Route}/api/files/download/${file_id}`, {
+    const {file_id, user_id} = req.params;
+    const response = await axios.get(`${C_Server_Route}/api/files/download/${file_id}/${user_id}`, {
       headers: {
         "key": API_KEY,
       },
@@ -198,12 +198,12 @@ app.post("/api/files/create/:user_id", async (req, res) => { //Creates a new fil
 
 //Patch Routes
 
-app.post("/api/files/name/:file_id", async (req, res) => { //The route to change the name of a file
+app.post("/api/files/name/:file_id/:user_id", async (req, res) => { //The route to change the name of a file
   try {
-    const { file_id } = req.params;
+    const { file_id, user_id } = req.params;
     const response = await axios({
       method: "PATCH",
-      url: `${C_Server_Route}/api/files/name/${file_id}`,
+      url: `${C_Server_Route}/api/files/name/${file_id}/${user_id}`,
       data: { new_name: req.body.new_name },
       headers: { "Content-Type": "application/json", key: API_KEY },
     });
@@ -214,12 +214,12 @@ app.post("/api/files/name/:file_id", async (req, res) => { //The route to change
   }
 });
 
-app.post("/api/files/move/:file_id", async (req, res) => { //The route to change the location of a file
+app.post("/api/files/move/:file_id/:user_id", async (req, res) => { //The route to change the location of a file
   try {
-    const { file_id } = req.params;
+    const { file_id, user_id } = req.params;
     const response = await axios({
       method: "PATCH",
-      url: `${C_Server_Route}/api/files/move/${file_id}`,
+      url: `${C_Server_Route}/api/files/move/${file_id}/${user_id}`,
       data: { new_location: req.body.new_location },
       headers: { "Content-Type": "application/json", key: API_KEY },
     });

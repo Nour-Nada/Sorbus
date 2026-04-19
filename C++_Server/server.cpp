@@ -101,6 +101,7 @@ const std::string DUPLICATE_FILE_NAME = "A File With This Name Already Exists in
 const std::string DUPLICATE_USER = "A User With This Username or Email Already Exists;";
 const std::string TOO_MANY_FILES = "The Maximum Number of Files Has Been Reached;";
 const std::string MISSING_BODY_PARAM = "The Information Sent is Missing Something;";
+const std::string ACCESS_DENIED = "Access Denied: Insufficient Permissions;";
 
 //Global String Success
 const std::string GOOD_DB_CONNECTION = "Connected to PostgreSQL Server; API Path ";
@@ -373,8 +374,7 @@ int main(void)
             pqxx::nontransaction DB_Open_Connection{ DB_Connection };
             try {
                 pqxx::result result = DB_Open_Connection.exec(
-                    pqxx::zview("SELECT * from files WHERE user_id = $1 ORDER BY file_location ASC;"), //Selects all the files for this user
-                    user_id_int
+                    pqxx::zview("SELECT * from files ORDER BY file_location ASC;") //Selects all the files for this user
                 );
 
                 nlohmann::json tree = nlohmann::json::object(); //Creates JSON object
@@ -424,14 +424,25 @@ int main(void)
             return;
         });
 
-        svr.Get("/api/files/download/:file_id", [](const httplib::Request& req, httplib::Response& res) { //Downloading a file or folder
+        svr.Get("/api/files/download/:file_id/:user_id", [](const httplib::Request& req, httplib::Response& res) { //Downloading a file or folder
             LOG_CALL();
             std::string API_PATH = "GET: /api/files/download";
             std::string file_id = req.path_params.at("file_id");
+            std::string user_id = req.path_params.at("user_id");
 
             int file_id_int = 0;
+            int user_id_int = 0;
             try {
                 file_id_int = std::stoi(file_id);
+            }
+            catch (const std::invalid_argument& e) {
+                res.status = 400;
+                std::cout << e.what() << std::endl;
+                res.set_content(BAD_PARAMATER, "text/plain");
+                return;
+            }
+            try {
+                user_id_int = std::stoi(user_id);
             }
             catch (const std::invalid_argument& e) {
                 res.status = 400;
@@ -457,6 +468,18 @@ int main(void)
             std::string file_name;
             std::string type;
             try {
+                pqxx::result user_check = DB_Open_Connection.exec_params(
+                    "SELECT * FROM users WHERE id = $1",
+                    user_id_int
+                );
+
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") {
+                    res.status = 403;
+                    std::cout << ACCESS_DENIED << API_PATH << std::endl;
+                    res.set_content(ACCESS_DENIED, "text/plain");
+                    return;
+                }
+
                 result = DB_Open_Connection.exec_params(
                     "SELECT * FROM files WHERE id = $1;", //Returns the file that the user wants to download
                     file_id_int
@@ -674,6 +697,38 @@ int main(void)
                 return;
             }
 
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
+            if (!DB_Connection.is_open()) {
+                res.status = 502;
+                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                res.set_content(BAD_DB_CONNECTION, "text/plain");
+                return;
+            }
+            else {
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+            }
+
+            pqxx::work DB_Open_Connection{ DB_Connection };
+
+            try {
+                pqxx::result user_check = DB_Open_Connection.exec_params(
+                    "SELECT * FROM users WHERE id = $1;",
+                    user_id_int
+                );
+
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") {
+                    res.status = 403;
+                    std::cout << ACCESS_DENIED << API_PATH << std::endl;
+                    res.set_content(ACCESS_DENIED, "text/plain");
+                    return;
+                }
+            }
+            catch (const std::exception& e) {
+                res.status = 500;
+                std::cout << e.what() << std::endl;
+                res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+                return;
+            }
 
             if (file_location == "/") {
                 file_location = "";
@@ -764,18 +819,6 @@ int main(void)
             };
             std::string extension = get_file_extension(file_name);
 
-            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-            if (!DB_Connection.is_open()) {
-                res.status = 502;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
-                return;
-            }
-            else {
-                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-            }
-
-            pqxx::work DB_Open_Connection{ DB_Connection };
             try {
                 pqxx::result result = DB_Open_Connection.exec_params(
                     "INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES ($1, $2, $3, $4, $5);",
@@ -850,6 +893,18 @@ int main(void)
 
             pqxx::work DB_Open_Connection{ DB_Connection };
             try {
+                pqxx::result user_check = DB_Open_Connection.exec_params(
+                    "SELECT * FROM users WHERE id = $1",
+                    user_id_int
+                );
+
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") {
+                    res.status = 403;
+                    std::cout << ACCESS_DENIED << API_PATH << std::endl;
+                    res.set_content(ACCESS_DENIED, "text/plain");
+                    return;
+                }
+
                 pqxx::result tmpResult = DB_Open_Connection.exec_params(
                     "SELECT 1 FROM files WHERE user_id = $1 AND file_location = $2 AND file_name = $3 LIMIT 1;",
                     user_id_int, folder_path, new_name); //Ensures the folder does not already exist in the database
@@ -899,15 +954,27 @@ int main(void)
 
         // Patch Routes
 
-        svr.Patch("/api/files/name/:file_id", [](const httplib::Request& req, httplib::Response& res) { //Renaming a file
+        svr.Patch("/api/files/name/:file_id/:user_id", [](const httplib::Request& req, httplib::Response& res) { //Renaming a file
             LOG_CALL();
             std::string API_PATH = "PATCH: /api/files/name";
             std::string file_id = req.path_params.at("file_id");
+            std::string user_id = req.path_params.at("user_id");
             std::string new_name;
 
             int file_id_int = 0;
+            int user_id_int = 0;
             try {
                 file_id_int = std::stoi(file_id);
+            }
+            catch (const std::invalid_argument& e) {
+                res.status = 400;
+                std::cout << e.what() << std::endl;
+                res.set_content(BAD_PARAMATER, "text/plain");
+                return;
+            }
+
+            try {
+                user_id_int = std::stoi(user_id);
             }
             catch (const std::invalid_argument& e) {
                 res.status = 400;
@@ -929,6 +996,19 @@ int main(void)
 
             pqxx::work DB_Open_Connection{ DB_Connection };
             try {
+                pqxx::result user_check = DB_Open_Connection.exec_params(
+                    "SELECT * FROM users WHERE id = $1",
+                    user_id_int
+                );
+
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") {
+                    res.status = 403;
+                    std::cout << ACCESS_DENIED << API_PATH << std::endl;
+                    res.set_content(ACCESS_DENIED, "text/plain");
+                    return;
+                }
+
+
                 pqxx::result result = DB_Open_Connection.exec_params(
                     "SELECT * from files WHERE id = $1;",
                     file_id_int); //selects the file we want to rename
@@ -1030,14 +1110,26 @@ int main(void)
             return;
         });
 
-        svr.Patch("/api/files/move/:file_id", [](const httplib::Request& req, httplib::Response& res) { //Moving a file
+        svr.Patch("/api/files/move/:file_id/:user_id", [](const httplib::Request& req, httplib::Response& res) { //Moving a file
             LOG_CALL();
             std::string API_PATH = "PATCH: /api/files/move";
             std::string file_id = req.path_params.at("file_id");
+            std::string user_id = req.path_params.at("user_id");
 
             int file_id_int = 0;
+            int user_id_int = 0;
             try {
                 file_id_int = std::stoi(file_id);
+            }
+            catch (const std::invalid_argument& e) {
+                res.status = 400;
+                std::cout << e.what() << std::endl;
+                res.set_content(BAD_PARAMATER, "text/plain");
+                return;
+            }
+
+            try {
+                user_id_int = std::stoi(user_id);
             }
             catch (const std::invalid_argument& e) {
                 res.status = 400;
@@ -1063,6 +1155,18 @@ int main(void)
             std::string file_name;
 
             try {
+                pqxx::result user_check = DB_Open_Connection.exec_params(
+                    "SELECT * FROM users WHERE id = $1",
+                    user_id_int
+                );
+
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") {
+                    res.status = 403;
+                    std::cout << ACCESS_DENIED << API_PATH << std::endl;
+                    res.set_content(ACCESS_DENIED, "text/plain");
+                    return;
+                }
+
                 result = DB_Open_Connection.exec_params(
                     "SELECT * FROM files WHERE id = $1;",
                     file_id_int);
@@ -1155,10 +1259,22 @@ int main(void)
         svr.Delete("/api/files/delete/:file_id", [](const httplib::Request& req, httplib::Response& res) { //Deletes a file
             std::string API_PATH = "DELETE: /api/files/delete";
             std::string file_id = req.path_params.at("file_id");
+            std::string user_id = req.path_params.at("user_id");
 
             int file_id_int = 0;
+            int user_id_int = 0;
             try {
                 file_id_int = std::stoi(file_id);
+            }
+            catch (const std::invalid_argument& e) {
+                res.status = 400;
+                std::cout << e.what() << std::endl;
+                res.set_content(BAD_PARAMATER, "text/plain");
+                return;
+            }
+
+            try {
+                user_id_int = std::stoi(user_id);
             }
             catch (const std::invalid_argument& e) {
                 res.status = 400;
@@ -1186,6 +1302,18 @@ int main(void)
             std::string file_type;
 
             try {
+                pqxx::result user_check = DB_Open_Connection.exec_params(
+                    "SELECT * FROM users WHERE id = $1",
+                    user_id_int
+                );
+
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") {
+                    res.status = 403;
+                    std::cout << ACCESS_DENIED << API_PATH << std::endl;
+                    res.set_content(ACCESS_DENIED, "text/plain");
+                    return;
+                }
+
                 result = DB_Open_Connection.exec_params(
                     "SELECT * FROM files WHERE id = $1;",
                     file_id_int);
