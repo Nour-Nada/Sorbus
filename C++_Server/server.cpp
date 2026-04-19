@@ -1256,7 +1256,7 @@ int main(void)
 
         // Delete Routes
 
-        svr.Delete("/api/files/delete/:file_id", [](const httplib::Request& req, httplib::Response& res) { //Deletes a file
+        svr.Delete("/api/files/delete/:file_id/:user_id", [](const httplib::Request& req, httplib::Response& res) { //Deletes a file
             std::string API_PATH = "DELETE: /api/files/delete";
             std::string file_id = req.path_params.at("file_id");
             std::string user_id = req.path_params.at("user_id");
