@@ -65,7 +65,7 @@ const int MAX_FILES = []() { //Maximum number of files allowed in the storage lo
 const std::string DB_CONNECTION_STRING = []() {
     const char* value = std::getenv("FILEAPP_DB_CONNECTION");
     return (value && *value) ? std::string(value)
-        : "dbname=pyrus user=postgres password=REDACTED host=localhost";
+        : "dbname=sorbus user=postgres password=REDACTED host=localhost";
 }();
 
 
@@ -173,9 +173,36 @@ void reinitialize_files(pqxx::work &db_con, int user_id) { //Reinitializes the f
     db_con.exec("TRUNCATE files");
 
     fs::path base(get_file_location());
-    int count = 0;
+    current_file_count = 0;
 
+    for (auto const& dir_entry : fs::recursive_directory_iterator{ base }) {
+        if (current_file_count > MAX_FILES) {
+            throw std::runtime_error("Hit Maximum File Load Count");
+        }
+        std::string file_name;
+        std::string file_location;
+        int file_size = 0;
+        std::string file_extension;
 
+        if (fs::is_directory(dir_entry)) {
+            file_size = -1;
+            file_extension = "folder";
+        }
+        else {
+            file_extension = dir_entry.path().extension().string();
+            file_size = fs::file_size(dir_entry);
+        }
+        file_name = dir_entry.path().filename().string();
+        file_location = fs::relative(dir_entry.path(), base).parent_path().generic_string();
+
+        db_con.exec_params(
+            "INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES ($1, $2, $3, $4, $5);",
+            user_id, file_name, file_location, file_size, file_extension);
+
+        ++current_file_count;
+    }
+
+    return;
 }
 
 
@@ -352,7 +379,7 @@ int main(void)
             pqxx::nontransaction DB_Open_Connection{ DB_Connection };
             try {
                 pqxx::result result = DB_Open_Connection.exec_params(
-                    "SELECT * FROM users WHERE name = $1 OR email = $2", username, username
+                    "SELECT * FROM users WHERE username = $1 OR email = $2", username, username
                 );
 
                 if (result.empty()) {
@@ -487,7 +514,7 @@ int main(void)
                 }
 
                 pqxx::result user_exists = DB_Open_Connection.exec_params(
-                    "SELECT * FROM user WHERE id = $1;",
+                    "SELECT * FROM users WHERE id = $1;",
                     user_id_change_int); //selects the user who's value we want to change
                 if (user_exists.empty()) { //Checks to ensure the user exists
                     throw std::runtime_error(DB_QUERY_ERROR);
@@ -907,9 +934,6 @@ int main(void)
                     "UPDATE server_info SET storage_space_remaining = $1 WHERE id = 1;", available
                 );
 
-                nlohmann::json tree = nlohmann::json::object(); //Creates JSON object
-                nlohmann::json file_ids = nlohmann::json::object();
-
                 res.status = 200;
                 res.set_content(std::to_string(available), "text/plain"); //API response
             }
@@ -995,15 +1019,21 @@ int main(void)
             if (file_location == "/") {
                 file_location = "";
             }
-            std::string file_path_check = get_file_location() + file_location;
-            std::string file_path = get_file_location() + file_location + "/" + file_name;
-            if (!std::filesystem::exists(file_path_check)) {
-                res.status = 409;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
+            fs::path check_path;
+            fs::path safe_file_path;
+            if (!build_safe_path(file_location, "", check_path) || !build_safe_path(file_location, file_name, safe_file_path)) {
+                res.status = 400;
+                res.set_content(BAD_PARAMATER, "text/plain");
                 return;
             }
-            if (std::filesystem::exists(file_path)) { //checks if the file already exists
+            std::string file_path = safe_file_path.string();
+            if (!fs::exists(check_path)) {
+                res.status = 404;
+                std::cout << UNFOUND_FILE_PATH << API_PATH << std::endl;
+                res.set_content(UNFOUND_FILE_PATH, "text/plain");
+                return;
+            }
+            if (fs::exists(safe_file_path)) { //checks if the file already exists
                 res.status = 409;
                 std::cout << UNABLE_TO_UPLOAD_FILE << API_PATH << std::endl;
                 res.set_content(UNABLE_TO_UPLOAD_FILE, "text/plain");

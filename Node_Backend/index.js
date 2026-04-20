@@ -3,14 +3,18 @@ import bodyParser from "body-parser";
 import axios from "axios";
 import dotenv from "dotenv";
 import bcrypt from "bcrypt";
+import rateLimit from 'express-rate-limit'
 
 const app = express();
 const port = 3000;
 dotenv.config();
 
-// Allow raw streaming BEFORE body parsers
-app.use("/api/files/upload", (req, res, next) => {
-  next(); // do NOT attach body parsers here
+const limiter = rateLimit({
+	windowMs: 5 * 60 * 1000, // 5 minutes
+	limit: 100, // Limit each IP to 100 requests per `window` (here, per 5 minutes).
+	standardHeaders: 'draft-8', // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
+	legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
+	ipv6Subnet: 56, // Set to 60 or 64 to be less aggressive, or 52 or 48 to be more aggressive
 });
 
 app.use(express.json());
@@ -34,7 +38,7 @@ const C_Server_Route = process.env.C_Server_Route;
 
 
 
-app.post("/api/user/signup", async (req, res) => { //The route to signup
+app.post("/api/user/signup", limiter, async (req, res) => { //The route to signup
   try {
     const password = await bcrypt.hash(req.body.password, 10); //Hashes the password using bcrypt before sending it to the C++ server
     const response = await axios({
@@ -57,7 +61,7 @@ app.post("/api/user/signup", async (req, res) => { //The route to signup
   }
 });
 
-app.get("/api/user/login/:username", async (req, res) => { //The route to login
+app.get("/api/user/login/:username", limiter, async (req, res) => { //The route to login
   try {
     const {username} = req.params;
     const response = await axios({
@@ -98,7 +102,7 @@ app.get("/api/user/name", async (req, res) => { //The route to get the file to d
 
 });
 
-app.post("/api/user/change/access/:user_id_main/:user_id_change/:access", async (req, res) => { //The route to get the file to download
+app.patch("/api/user/change/access/:user_id_main/:user_id_change/:access", async (req, res) => { //The route to get the file to download
   try {
     const { user_id_main, user_id_change, access } = req.params;
     const response = await axios.patch(`${C_Server_Route}/api/user/change/access/${user_id_main}/${user_id_change}/${access}`, {
@@ -115,7 +119,7 @@ app.post("/api/user/change/access/:user_id_main/:user_id_change/:access", async 
 
 });
 
-app.post("/api/user/delete/:user_id_main/:user_id_change", async (req, res) => { //The route to get the file to download
+app.delete("/api/user/delete/:user_id_main/:user_id_change", async (req, res) => { //The route to get the file to download
   try {
     const { user_id_main, user_id_change } = req.params;
     const response = await axios.delete(`${C_Server_Route}/api/user/delete/${user_id_main}/${user_id_change}`, {
@@ -258,7 +262,7 @@ app.post("/api/files/create/:user_id", async (req, res) => { //Creates a new fil
 
 //Patch Routes
 
-app.post("/api/files/name/:file_id/:user_id", async (req, res) => { //The route to change the name of a file
+app.patch("/api/files/name/:file_id/:user_id", async (req, res) => { //The route to change the name of a file
   try {
     const { file_id, user_id } = req.params;
     const response = await axios({
@@ -274,7 +278,7 @@ app.post("/api/files/name/:file_id/:user_id", async (req, res) => { //The route 
   }
 });
 
-app.post("/api/files/move/:file_id/:user_id", async (req, res) => { //The route to change the location of a file
+app.patch("/api/files/move/:file_id/:user_id", async (req, res) => { //The route to change the location of a file
   try {
     const { file_id, user_id } = req.params;
     const response = await axios({
@@ -293,12 +297,12 @@ app.post("/api/files/move/:file_id/:user_id", async (req, res) => { //The route 
 
 //Delete Routes
 
-app.post("/api/files/delete/:file_id", async (req, res) => { //The route to delete a file
+app.delete("/api/files/delete/:file_id/:user_id", async (req, res) => { //The route to delete a file
   try {
-    const { file_id } = req.params;
+    const { file_id, user_id } = req.params;
     const response = await axios({
       method: "DELETE",
-      url: `${C_Server_Route}/api/files/delete/${file_id}`,
+      url: `${C_Server_Route}/api/files/delete/${file_id}/${user_id}`,
       headers: { key: API_KEY },
     });
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
@@ -318,21 +322,22 @@ app.post("/api/files/delete/:file_id", async (req, res) => { //The route to dele
 
 //Patch Routes
 
-app.post("/api/features/reinitialize/:user_id", async (req, res) => { //Reinitializing the files in the current location
+app.patch("/api/features/reinitialize/:user_id", limiter, async (req, res) => { //Reinitializing the files in the current location
   try {
     const { user_id } = req.params;
     const response = await axios({
-      method: "DELETE",
+      method: "PATCH",
       url: `${C_Server_Route}/api/features/reinitialize/${user_id}`,
       headers: { key: API_KEY },
     });
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
-    
+    console.error("Error reinitializing the files:", error);
+    res.status(500).send("Error reinitializing the files");
   }
 });
 
-app.post("/api/features/location/:user_id", async (req, res) => { //Changing the file location that is displayed
+app.patch("/api/features/location/:user_id", limiter, async (req, res) => { //Changing the file location that is displayed
   try {
     const { user_id } = req.params;
     const response = await axios({
@@ -343,7 +348,8 @@ app.post("/api/features/location/:user_id", async (req, res) => { //Changing the
     });
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
-    
+    console.error("Error changing the folder:", error);
+    res.status(500).send("Error changing the folder");
   }
 });
 
