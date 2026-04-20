@@ -9,7 +9,7 @@ const app = express();
 const port = 3000;
 dotenv.config();
 
-const limiter = rateLimit({
+const limiter = rateLimit({ //The variable to set the rate limits
 	windowMs: 5 * 60 * 1000, // 5 minutes
 	limit: 100, // Limit each IP to 100 requests per `window` (here, per 5 minutes).
 	standardHeaders: 'draft-8', // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header

@@ -175,8 +175,8 @@ void reinitialize_files(pqxx::work &db_con, int user_id) { //Reinitializes the f
     fs::path base(get_file_location());
     current_file_count = 0;
 
-    for (auto const& dir_entry : fs::recursive_directory_iterator{ base }) {
-        if (current_file_count > MAX_FILES) {
+    for (auto const& dir_entry : fs::recursive_directory_iterator{ base }) { //The for loop to go through every file in the base file path
+        if (current_file_count > MAX_FILES) { //Checks to make sure we have not surpassed the maximum amount of files allowed
             throw std::runtime_error("Hit Maximum File Load Count");
         }
         std::string file_name;
@@ -197,7 +197,7 @@ void reinitialize_files(pqxx::work &db_con, int user_id) { //Reinitializes the f
 
         db_con.exec_params(
             "INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES ($1, $2, $3, $4, $5);",
-            user_id, file_name, file_location, file_size, file_extension);
+            user_id, file_name, file_location, file_size, file_extension); //inserts the file into the database
 
         ++current_file_count;
     }
@@ -506,7 +506,7 @@ int main(void)
                     user_id_main_int
                 );
 
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() != "owner") {
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() != "owner") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
@@ -592,7 +592,7 @@ int main(void)
                     user_id_main_int
                 );
 
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() != "owner") {
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() != "owner") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
@@ -762,7 +762,7 @@ int main(void)
                     user_id_int
                 );
 
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") {
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
@@ -1002,7 +1002,7 @@ int main(void)
                     user_id_int
                 );
 
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") {
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
@@ -1190,7 +1190,7 @@ int main(void)
                     user_id_int
                 );
 
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") {
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
@@ -1293,7 +1293,7 @@ int main(void)
                     user_id_int
                 );
 
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") {
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
@@ -1452,7 +1452,7 @@ int main(void)
                     user_id_int
                 );
 
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") {
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
@@ -1599,7 +1599,7 @@ int main(void)
                     user_id_int
                 );
 
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") {
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
@@ -1718,7 +1718,7 @@ int main(void)
                     user_id_int
                 );
 
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() != "owner") {
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() != "owner") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
@@ -1726,7 +1726,7 @@ int main(void)
                 }
 
                 try {
-                   reinitialize_files(DB_Open_Connection, user_id_int);
+                   reinitialize_files(DB_Open_Connection, user_id_int); //calls the reinitialize route
                 }
                 catch (const std::exception& e) {
                     res.status = 500;
@@ -1801,7 +1801,7 @@ int main(void)
                     user_id_int
                 );
 
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() != "owner") {
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() != "owner") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
@@ -1817,10 +1817,10 @@ int main(void)
                     return;
                 }
 
-                set_file_location(new_path.string());
+                set_file_location(new_path.string()); //changes the base file location
 
                 try {
-                    reinitialize_files(DB_Open_Connection, user_id_int);
+                    reinitialize_files(DB_Open_Connection, user_id_int); //calls the reinitialize route
                 }
                 catch (const std::exception& e) {
                     res.status = 500;
