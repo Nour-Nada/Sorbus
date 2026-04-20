@@ -24,20 +24,15 @@ const C_Server_Route = process.env.C_Server_Route;
 
 
 
-//Functions
+//ROUTES
 
 
 
 
-//Basic Functionality Backend Routes
+
+//User Backend Routes
 
 
-
-//Get Routes
-
-app.get("/", async (req, res) => { //The base route
-  res.send('API is running (This is the API for the local file upload app');
-});
 
 app.post("/api/user/signup", async (req, res) => { //The route to signup
   try {
@@ -75,15 +70,80 @@ app.get("/api/user/login/:username", async (req, res) => { //The route to login
         username: username
       }
     });
-    const passwordMatch = await bcrypt.compare(req.body.password, response.data); //Compares the password from the frontend with the hashed password from the C++ server using bcrypt
+    const passwordMatch = await bcrypt.compare(req.body.password, response.data.password); //Compares the password from the frontend with the hashed password from the C++ server using bcrypt
     if (!passwordMatch) {
       return res.status(401).send("Invalid credentials");
     }
-    res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
+    const userInfo = { user_id: response.data.user_id, username: response.data.username, access: response.data.access }; //Builds response without exposing the hashed password
+    res.status(200).json(userInfo);
   } catch (error) {
     console.error("Error logging in:", error);
     res.status(500).send("Error logging in");
   }
+});
+
+app.get("/api/user/name", async (req, res) => { //The route to get the file to download
+  try {
+    const response = await axios.get(`${C_Server_Route}/api/user/name`, {
+      headers: {
+        "key": API_KEY
+      }
+    });
+    res.status(response.status);
+    res.json(response.data);
+  } catch (error) {
+    console.error("Error retreving users:", error);
+    res.status(500).send("Error retreving users");
+  }
+
+});
+
+app.post("/api/user/change/access/:user_id_main/:user_id_change/:access", async (req, res) => { //The route to get the file to download
+  try {
+    const { user_id_main, user_id_change, access } = req.params;
+    const response = await axios.patch(`${C_Server_Route}/api/user/change/access/${user_id_main}/${user_id_change}/${access}`, {
+      headers: {
+        "key": API_KEY
+      }
+    });
+    res.status(response.status);
+    res.json(response.data);
+  } catch (error) {
+    console.error("Error retreving users:", error);
+    res.status(500).send("Error retreving users");
+  }
+
+});
+
+app.post("/api/user/delete/:user_id_main/:user_id_change", async (req, res) => { //The route to get the file to download
+  try {
+    const { user_id_main, user_id_change } = req.params;
+    const response = await axios.delete(`${C_Server_Route}/api/user/delete/${user_id_main}/${user_id_change}`, {
+      headers: {
+        "key": API_KEY
+      }
+    });
+    res.status(response.status);
+    res.json(response.data);
+  } catch (error) {
+    console.error("Error retreving users:", error);
+    res.status(500).send("Error retreving users");
+  }
+
+});
+
+
+
+
+
+//Basic Functionality Backend Routes
+
+
+
+//Get Routes
+
+app.get("/", async (req, res) => { //The base route
+  res.send('API is running (This is the API for the local file upload app');
 });
 
 app.get("/api/files/name/:user_id", async (req, res) => { //The route to get the file to download

@@ -21,7 +21,7 @@
 #include "header_libs/miniz/miniz.h"
 
 //Created headers
-#include "server_functions.h"
+// ...
 
 //Namespaces
 namespace fs = std::filesystem;
@@ -149,6 +149,25 @@ static bool build_safe_path(const std::string& location, const std::string& leaf
     return true;
 }
 
+std::string getTimestamp() { //Gets timestamp in format YYYY-MM-DD HH:MM:SS
+    // Get current time
+    auto now = std::chrono::system_clock::now();
+    std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+
+    // Convert to local time
+    std::tm local_tm;
+    #if defined(_WIN32) || defined(_WIN64)
+        localtime_s(&local_tm, &now_time);  // Windows-safe version
+    #else
+        localtime_r(&now_time, &local_tm);  // POSIX-safe version
+    #endif
+
+    // Format timestamp: YYYY-MM-DD HH:MM:SS
+    std::ostringstream oss;
+    oss << std::put_time(&local_tm, "%Y-%m-%d %H:%M:%S");
+    return oss.str();
+}
+
 
 
 int main(void)
@@ -196,7 +215,10 @@ int main(void)
 
     try {
 
-        // Auth Routes
+
+
+        // User Routes
+
 
         svr.Post("/api/user/signup", [&](const httplib::Request& req, httplib::Response& res) { //Signing up a user
             LOG_CALL();
@@ -316,11 +338,11 @@ int main(void)
             else {
                 std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
             }
-
+            nlohmann::json response;
             pqxx::nontransaction DB_Open_Connection{ DB_Connection };
             try {
                 pqxx::result result = DB_Open_Connection.exec_params(
-                    "SELECT password FROM users WHERE name = $1 OR email = $2", username, username
+                    "SELECT * FROM users WHERE name = $1 OR email = $2", username, username
                 );
 
                 if (result.empty()) {
@@ -329,9 +351,12 @@ int main(void)
                     return;
                 }
 
-                std::string password = result[0]["password"].c_str();
+                response["user_id"] = result[0]["id"].as<int>();
+                response["username"] = result[0]["username"].c_str();
+                response["access"] = result[0]["access"].c_str();
+                response["password"] = result[0]["password"].c_str();
                 res.status = 200;
-                res.set_content(password, "text/plain"); //API response
+                res.set_content(response.dump(), "application/json"); //API response
             }
             catch (const std::exception& e) {
                 res.status = 500;
@@ -341,6 +366,233 @@ int main(void)
 
             return;
         });
+
+        svr.Get("/api/user/name", [&](const httplib::Request& req, httplib::Response& res) { //Retrieving user names
+            LOG_CALL();
+            std::string API_PATH = "GET: /api/user/name"; //Path in variable for error messages
+
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
+            if (!DB_Connection.is_open()) {
+                res.status = 502;
+                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                res.set_content(BAD_DB_CONNECTION, "text/plain");
+                return;
+            }
+            else {
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+            }
+
+            pqxx::nontransaction DB_Open_Connection{ DB_Connection };
+            try {
+                pqxx::result result = DB_Open_Connection.exec(
+                    pqxx::zview("SELECT * from users;") //Selects all the files for this user
+                );
+
+                nlohmann::json tree = nlohmann::json::object(); //Creates JSON object
+
+                for (const auto& row : result) { //Adds each file or folder by going row by row for each folder that got returned from the above query
+                    std::string username = row["username"].c_str();
+                    int id = row["id"].as<int>();
+
+                    tree[username] = id;
+                }
+
+                res.status = 200;
+                res.set_content(tree.dump(), "application/json"); //API response
+            }
+            catch (const std::exception& e) {
+                res.status = 500;
+                std::cout << e.what() << std::endl;
+                res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+            }
+            return;
+        });
+
+        svr.Patch("/api/user/change/access/:user_id_main/:user_id_change/:access", [](const httplib::Request& req, httplib::Response& res) { //Updating user permissions
+            LOG_CALL();
+            std::string API_PATH = "PATCH: /api/user/change/access";
+            std::string user_id_main = req.path_params.at("user_id_main");
+            std::string user_id_change = req.path_params.at("user_id_change");
+            std::string access = req.path_params.at("access");
+
+            if (access != "viewer" && access != "editor") { //checks to make sure access is not set as owner as the owner can't be changed
+                res.status = 400;
+                std::cout << BAD_PARAMATER << API_PATH << std::endl;
+                res.set_content(BAD_PARAMATER, "text/plain");
+                return;
+            }
+
+            int user_id_main_int = 0;
+            int user_id_change_int = 0;
+            try {
+                user_id_main_int = std::stoi(user_id_main);
+            }
+            catch (const std::invalid_argument& e) {
+                res.status = 400;
+                std::cout << e.what() << std::endl;
+                res.set_content(BAD_PARAMATER, "text/plain");
+                return;
+            }
+
+            try {
+                user_id_change_int = std::stoi(user_id_change);
+            }
+            catch (const std::invalid_argument& e) {
+                res.status = 400;
+                std::cout << e.what() << std::endl;
+                res.set_content(BAD_PARAMATER, "text/plain");
+                return;
+            }
+
+            if (user_id_main_int == user_id_change_int) { //checks the owner user is not changing his own status
+                res.status = 400;
+                std::cout << "Can't Change Your Own Access;" << API_PATH << std::endl;
+                res.set_content("Can't Change Your Own Access", "text/plain");
+                return;
+            }
+
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
+            if (!DB_Connection.is_open()) {
+                res.status = 502;
+                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                res.set_content(BAD_DB_CONNECTION, "text/plain");
+                return;
+            }
+            else {
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+            }
+
+            pqxx::work DB_Open_Connection{ DB_Connection };
+            try {
+                pqxx::result user_check = DB_Open_Connection.exec_params(
+                    "SELECT * FROM users WHERE id = $1",
+                    user_id_main_int
+                );
+
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() != "owner") {
+                    res.status = 403;
+                    std::cout << ACCESS_DENIED << API_PATH << std::endl;
+                    res.set_content(ACCESS_DENIED, "text/plain");
+                    return;
+                }
+
+                pqxx::result user_exists = DB_Open_Connection.exec_params(
+                    "SELECT * FROM user WHERE id = $1;",
+                    user_id_change_int); //selects the user who's value we want to change
+                if (user_exists.empty()) { //Checks to ensure the user exists
+                    throw std::runtime_error(DB_QUERY_ERROR);
+                }
+
+                DB_Open_Connection.exec_params(
+                    "UPDATE users SET access = $1 WHERE id = $2;",
+                    access, user_id_change_int);
+
+                DB_Open_Connection.commit();
+
+                res.status = 200;
+                res.set_content("User Permissions Successfully Changed", "text/plain"); //API response
+            }
+            catch (const std::exception& e) {
+                res.status = 500;
+                std::cout << e.what() << std::endl;
+                res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+                DB_Open_Connection.commit();
+            }
+
+            return;
+        });
+
+        svr.Delete("/api/user/delete/:user_id_main/:user_id_change", [](const httplib::Request& req, httplib::Response& res) { //Deletes a file
+            std::string API_PATH = "DELETE: /api/user/delete";
+            std::string user_id_main = req.path_params.at("user_id_main");
+            std::string user_id_change = req.path_params.at("user_id_change");
+
+            int user_id_main_int = 0;
+            int user_id_change_int = 0;
+            try {
+                user_id_main_int = std::stoi(user_id_main);
+            }
+            catch (const std::invalid_argument& e) {
+                res.status = 400;
+                std::cout << e.what() << std::endl;
+                res.set_content(BAD_PARAMATER, "text/plain");
+                return;
+            }
+
+            try {
+                user_id_change_int = std::stoi(user_id_change);
+            }
+            catch (const std::invalid_argument& e) {
+                res.status = 400;
+                std::cout << e.what() << std::endl;
+                res.set_content(BAD_PARAMATER, "text/plain");
+                return;
+            }
+
+            if (user_id_main_int == user_id_change_int) { //checks the owner user is not changing his own status
+                res.status = 400;
+                std::cout << "Can't Change Your Own Access;" << API_PATH << std::endl;
+                res.set_content("Can't Change Your Own Access", "text/plain");
+                return;
+            }
+
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
+            if (!DB_Connection.is_open()) {
+                res.status = 502;
+                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                res.set_content(BAD_DB_CONNECTION, "text/plain");
+                return;
+            }
+            else {
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+            }
+
+            pqxx::work DB_Open_Connection{ DB_Connection };
+
+            try {
+                pqxx::result user_check = DB_Open_Connection.exec_params(
+                    "SELECT * FROM users WHERE id = $1",
+                    user_id_main_int
+                );
+
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() != "owner") {
+                    res.status = 403;
+                    std::cout << ACCESS_DENIED << API_PATH << std::endl;
+                    res.set_content(ACCESS_DENIED, "text/plain");
+                    return;
+                }
+
+                pqxx::result user_exists = DB_Open_Connection.exec_params(
+                    "SELECT * FROM users WHERE id = $1;",
+                    user_id_change_int); //selects the user who's value we want to change
+                if (user_exists.empty()) { //Checks to ensure the user exists
+                    throw std::runtime_error(DB_QUERY_ERROR);
+                }
+
+                pqxx::result result = DB_Open_Connection.exec_params(
+                    "DELETE FROM users WHERE id = $1;",
+                    user_id_change_int
+                );
+
+                DB_Open_Connection.commit();
+            }
+            catch (const std::exception& e) {
+                res.status = 500;
+                std::cout << e.what() << std::endl;
+                res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+                DB_Open_Connection.commit();
+                return;
+            }
+
+            res.status = 200;
+            res.set_content("User Successfully Deleted", "text/plain"); //API response
+
+            return;
+        });
+
+
+
+        // Basic Functionality Routes
 
 
         // Get Routes
@@ -1388,7 +1640,9 @@ int main(void)
         });
 
 
+
         //Extra Features
+
 
         svr.Patch("/api/features/reinitialize/:user_id", [](const httplib::Request& req, httplib::Response& res) { //Reinitializing the files in the current location
             LOG_CALL();
