@@ -168,6 +168,16 @@ std::string getTimestamp() { //Gets timestamp in format YYYY-MM-DD HH:MM:SS
     return oss.str();
 }
 
+void reinitialize_files(pqxx::work &db_con, int user_id) { //Reinitializes the files in the database to match the local files
+
+    db_con.exec("TRUNCATE files");
+
+    fs::path base(get_file_location());
+    int count = 0;
+
+
+}
+
 
 
 int main(void)
@@ -1673,26 +1683,31 @@ int main(void)
 
             pqxx::work DB_Open_Connection{ DB_Connection };
             try {
-                pqxx::result result = DB_Open_Connection.exec_params(
-                    ";"); //selects the file we want to rename
-                if (result.empty()) { //Checks to ensure the file exists
-                    throw std::runtime_error(DB_QUERY_ERROR);
+                pqxx::result user_check = DB_Open_Connection.exec_params(
+                    "SELECT * FROM users WHERE id = $1",
+                    user_id_int
+                );
+
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() != "owner") {
+                    res.status = 403;
+                    std::cout << ACCESS_DENIED << API_PATH << std::endl;
+                    res.set_content(ACCESS_DENIED, "text/plain");
+                    return;
                 }
 
-                pqxx::result tmpResult = DB_Open_Connection.exec_params(
-                    ";");
-                if (!tmpResult.empty()) { //Checks if the new name is a duplicate name
-                    DB_Open_Connection.commit();
-                    res.status = 409;
-                    std::cout << DUPLICATE_FILE_NAME << API_PATH << std::endl;
-                    res.set_content(DUPLICATE_FILE_NAME, "text/plain");
-                    return;
+                try {
+                   reinitialize_files(DB_Open_Connection, user_id_int);
+                }
+                catch (const std::exception& e) {
+                    res.status = 500;
+                    std::cout << e.what() << std::endl;
+                    res.set_content(e.what(), "text/plain");
                 }
 
                 DB_Open_Connection.commit();
 
                 res.status = 200;
-                res.set_content("File Successfully Renamed", "text/plain"); //API response
+                res.set_content("Files Successfully Reinitialized", "text/plain"); //API response
             }
             catch (const std::exception& e) {
                 res.status = 500;
@@ -1701,7 +1716,7 @@ int main(void)
             }
 
             return;
-           });
+        });
 
         svr.Patch("/api/features/location/:user_id", [](const httplib::Request& req, httplib::Response& res) { //Changing the file location that is displayed
             LOG_CALL();
@@ -1719,6 +1734,25 @@ int main(void)
                 return;
             }
 
+            nlohmann::json body;
+            try {
+                body = nlohmann::json::parse(req.body);
+            }
+            catch (const std::exception& e) {
+                res.status = 400;
+                std::cout << e.what() << std::endl;
+                res.set_content("Invalid JSON body", "text/plain");
+                return;
+            }
+
+            if (!body.contains("new_location")) {
+                res.status = 400;
+                res.set_content("Missing New Location in Body", "text/plain");
+                return;
+            }
+
+            std::string new_file_location = body["new_location"].get<std::string>();
+
             pqxx::connection DB_Connection(DB_CONNECTION_STRING);
             if (!DB_Connection.is_open()) {
                 res.status = 502;
@@ -1732,26 +1766,42 @@ int main(void)
 
             pqxx::work DB_Open_Connection{ DB_Connection };
             try {
-                pqxx::result result = DB_Open_Connection.exec_params(
-                    ";"); //selects the file we want to rename
-                if (result.empty()) { //Checks to ensure the file exists
-                    throw std::runtime_error(DB_QUERY_ERROR);
+                pqxx::result user_check = DB_Open_Connection.exec_params(
+                    "SELECT * FROM users WHERE id = $1",
+                    user_id_int
+                );
+
+                if (user_check.empty() || user_check[0]["access"].as<std::string>() != "owner") {
+                    res.status = 403;
+                    std::cout << ACCESS_DENIED << API_PATH << std::endl;
+                    res.set_content(ACCESS_DENIED, "text/plain");
+                    return;
                 }
 
-                pqxx::result tmpResult = DB_Open_Connection.exec_params(
-                    ";");
-                if (!tmpResult.empty()) { //Checks if the new name is a duplicate name
+                fs::path new_path(new_file_location);
+                if (!new_path.is_absolute() || new_path.parent_path() == new_path.root_path() || !fs::exists(new_path) || !fs::is_directory(new_path)) {
+                    res.status = 400;
+                    std::cout << BAD_PARAMATER << API_PATH << std::endl;
+                    res.set_content(BAD_PARAMATER, "text/plain");
                     DB_Open_Connection.commit();
-                    res.status = 409;
-                    std::cout << DUPLICATE_FILE_NAME << API_PATH << std::endl;
-                    res.set_content(DUPLICATE_FILE_NAME, "text/plain");
                     return;
+                }
+
+                set_file_location(new_path.string());
+
+                try {
+                    reinitialize_files(DB_Open_Connection, user_id_int);
+                }
+                catch (const std::exception& e) {
+                    res.status = 500;
+                    std::cout << e.what() << std::endl;
+                    res.set_content(e.what(), "text/plain");
                 }
 
                 DB_Open_Connection.commit();
 
                 res.status = 200;
-                res.set_content("File Successfully Renamed", "text/plain"); //API response
+                res.set_content("Folder Location Changed", "text/plain"); //API response
             }
             catch (const std::exception& e) {
                 res.status = 500;
