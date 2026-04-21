@@ -1634,10 +1634,17 @@ int main(void)
             }
 
             try {
-                pqxx::result result = DB_Open_Connection.exec_params(
+                DB_Open_Connection.exec_params(
                     "DELETE FROM files WHERE id = $1;",
                     file_id_int
                 );
+                if (file_type == "folder") { // also remove all DB records whose path is inside this folder
+                    std::string folder_prefix = file_location.empty() ? file_name : file_location + "/" + file_name;
+                    DB_Open_Connection.exec_params(
+                        "DELETE FROM files WHERE file_location = $1 OR file_location LIKE $2;",
+                        folder_prefix, folder_prefix + "/%"
+                    );
+                }
             }
             catch (const std::exception& e) {
                 res.status = 500;
