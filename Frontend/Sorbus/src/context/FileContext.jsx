@@ -26,7 +26,7 @@ export const FileProvider = ({children}) => {
     }, []);
 
     return (
-        <FileContext.Provider value={{ tree, setTree, fileIds, setFileIds, currentPath, setCurrentPath, refreshFiles }}>
+        <FileContext.Provider value={{ tree, fileIds, currentPath, setCurrentPath, refreshFiles }}>
             {children}
         </FileContext.Provider>
     );
