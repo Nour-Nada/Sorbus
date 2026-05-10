@@ -1,10 +1,13 @@
-import './App.css'
+import './styles/App.css'
+import Home from './pages/Home.jsx'
+import Account from './pages/Account.jsx'
 
 function App() {
 
   return (
     <>
-      <p>Base Setup</p>
+      <Home />
+      <Account />
     </>
   )
 }
