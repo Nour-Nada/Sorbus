@@ -72,6 +72,22 @@ const std::string DB_CONNECTION_STRING = []() {
 std::atomic<int> api_traffic_count{ 0 }; //Counts how many API calls are made to valid endpoints while the server is still open
 std::atomic<int> current_file_count{ 0 }; //Tracks the current number of non-folder files stored across all users, initialized from the database on startup
 
+void initialize_file_location() { //Loads the file storage location from the database on startup, overriding the env/hardcoded default
+    try {
+        pqxx::connection conn(DB_CONNECTION_STRING);
+        pqxx::nontransaction txn(conn);
+        pqxx::result result = txn.exec("SELECT file_location FROM server_info WHERE id = 1;");
+        if (!result.empty() && !result[0][0].is_null()) {
+            std::string db_location = result[0][0].as<std::string>();
+            if (!db_location.empty()) {
+                set_file_location(db_location);
+            }
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to initialize file location: " << e.what() << std::endl;
+    }
+}
+
 void initialize_file_count() { //Sets current_file_count to the number of files in the database excluding folders
     try {
         pqxx::connection conn(DB_CONNECTION_STRING);
@@ -210,6 +226,7 @@ void reinitialize_files(pqxx::work &db_con, int user_id) { //Reinitializes the f
 int main(void)
 {
 
+    initialize_file_location(); //Loads the file storage location from the database before accepting requests
     initialize_file_count(); //Loads the current file count from the database before the server starts accepting requests
 
     //Opens up the file to which the output will be redirected
@@ -1825,6 +1842,10 @@ int main(void)
                 }
 
                 set_file_location(new_path.string()); //changes the base file location
+                DB_Open_Connection.exec_params(
+                    "UPDATE server_info SET file_location = $1 WHERE id = 1;",
+                    new_path.string()
+                ); //persists the new location to the database so it survives server restarts
 
                 try {
                     reinitialize_files(DB_Open_Connection, user_id_int); //calls the reinitialize route

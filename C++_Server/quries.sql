@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS server_info (
     server_status INTEGER NOT NULL,
     register_key TEXT NOT NULL,
     storage_space_remaining BIGINT NOT NULL,
+    file_location TEXT NOT NULL DEFAULT '',
     CONSTRAINT single_row CHECK (id = 1)
 );
 
@@ -76,7 +77,7 @@ DELETE FROM files WHERE file_location = '/example_path'; --Deleting file by loca
 --Inserting Data--
 INSERT INTO users (email, password) VALUES ('test', 'password123'); --Inserting new user--
 INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES (-1, 'example.txt', '/example_path', 1024, '.txt'); --Inserting new file--
-INSERT INTO server_info (server_status, register_key, storage_space_remaining) VALUES (-1, 'regkey123', 1000); --Inserting server information--
+INSERT INTO server_info (server_status, register_key, storage_space_remaining, file_location) VALUES (-1, 'regkey123', 1000, 'C:/Users/nour2/Videos/Test'); --Inserting server information--
 
 
 --Inserting Data Tests--
