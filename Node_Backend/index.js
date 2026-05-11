@@ -322,6 +322,20 @@ app.delete("/api/files/delete/:file_id/:user_id", async (req, res) => { //The ro
 
 //Patch Routes
 
+app.get("/api/features/location", async (req, res) => { //Returns the current absolute file path
+  try {
+    const response = await axios({
+      method: "GET",
+      url: `${C_Server_Route}/api/features/location`,
+      headers: { key: API_KEY },
+    });
+    res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
+  } catch (error) {
+    console.error("Error retrieving the file path:", error);
+    res.status(500).send("Error retrieving the file path");
+  }
+});
+
 app.patch("/api/features/reinitialize/:user_id", limiter, async (req, res) => { //Reinitializing the files in the current location
   try {
     const { user_id } = req.params;

@@ -1707,6 +1707,14 @@ int main(void)
 
         //Extra Features
 
+        svr.Get("/api/features/location", [&](const httplib::Request& req, httplib::Response& res) { //Retrieving user names
+            LOG_CALL();
+            std::string API_PATH = "GET: /api/features/location"; //Path in variable for error messages
+
+            res.status = 200;
+            res.set_content(get_file_location(), "text/plain"); //API response
+            return;
+         });
 
         svr.Patch("/api/features/reinitialize/:user_id", [](const httplib::Request& req, httplib::Response& res) { //Reinitializing the files in the current location
             LOG_CALL();
