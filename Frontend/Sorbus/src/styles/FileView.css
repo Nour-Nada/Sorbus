@@ -1,0 +1,13 @@
+.file-view {
+    flex: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+    .file-view {
+        padding: 10px;
+    }
+}
