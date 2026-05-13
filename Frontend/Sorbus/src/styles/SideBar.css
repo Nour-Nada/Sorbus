@@ -19,12 +19,93 @@
     flex-direction: row;
     align-items: center;
     padding: 12px 5px;
-    gap: 8px;
+    margin-bottom: 0;
 
     img {
-        width: 75px;
+        width: 40px;
+        margin: 10px;
         object-fit: contain;
     }
+}
+
+.upload-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 12px 10px;
+    margin-top: 0px;
+    padding: 10px 16px;
+    background-color: #2e5fa3;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1.1rem;
+    width: calc(100% - 20px);
+}
+
+.upload-btn:hover {
+    background-color: #3a72c0;
+}
+
+.upload-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+}
+
+.upload-modal {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    width: 560px;
+    max-width: 90vw;
+    position: relative;
+}
+
+.upload-close {
+    position: absolute;
+    top: -16px;
+    right: -16px;
+    background: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    color: #555;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+}
+
+.upload-drop-zone {
+    border: 2px dashed #2e5fa3;
+    border-radius: 8px;
+    padding: 80px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    color: #555;
+    transition: background 0.2s;
+}
+
+.upload-drop-zone:hover,
+.upload-drop-zone.dragging {
+    background: #eef4ff;
+}
+
+.upload-drop-zone .material-icons {
+    font-size: 48px;
+    color: #2e5fa3;
 }
 
 @media (max-width: 768px) {

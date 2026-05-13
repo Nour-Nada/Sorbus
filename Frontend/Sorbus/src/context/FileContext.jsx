@@ -13,6 +13,7 @@ export const FileProvider = ({children}) => {
     const refreshFiles = () => {
         // Fetches the full file tree for the logged-in user
         const userId = localStorage.getItem('user_id');
+        if (!userId) return;
         axios.get(`/api/files/name/${userId}`)
             .then(res => {
                 setTree(res.data.tree);
