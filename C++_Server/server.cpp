@@ -962,6 +962,41 @@ int main(void)
             return;
         });
 
+        svr.Get("/api/files/filesizes", [&](const httplib::Request& req, httplib::Response& res) { //Retrieving the storage of the files in the location
+            LOG_CALL();
+            std::string API_PATH = "GET: /api/files/filesizes"; //Path in variable for error messages
+
+            fs::space_info space = fs::space(get_file_location());
+            uintmax_t available = space.available; // bytes available
+
+            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
+            if (!DB_Connection.is_open()) {
+                res.status = 502;
+                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
+                res.set_content(BAD_DB_CONNECTION, "text/plain");
+                return;
+            }
+            else {
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+            }
+
+            pqxx::work DB_Open_Connection{ DB_Connection };
+            try {
+                pqxx::result result = DB_Open_Connection.exec_params(
+                    "SELECT SUM(file_size) FROM files;"
+                );
+
+                res.status = 200;
+                res.set_content(std::to_string(result[0][0].as<long int>()), "text/plain"); //API response
+            }
+            catch (const std::exception& e) {
+                res.status = 500;
+                std::cout << e.what() << std::endl;
+                res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+            }
+            return;
+        });
+
 
         // Post Routes
         

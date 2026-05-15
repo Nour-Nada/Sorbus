@@ -1,4 +1,4 @@
-import express from "express";
+import express, { response } from "express";
 import bodyParser from "body-parser";
 import axios from "axios";
 import dotenv from "dotenv";
@@ -200,6 +200,21 @@ app.get("/api/files/storage", async (req, res) => { //The route to get the stora
     res.status(500).send("Error retrieving remaining storage on the disk");
   }
 
+});
+
+app.get("/api/files/filesizes", async (req, res) => { //The route to get the sizes of the files in the current location
+  try {
+    const response = await axios.get(`${C_Server_Route}/api/files/filesizes`, {
+      headers: {
+        "key": API_KEY
+      }
+    });
+    res.status(response.status);
+    res.send(response.data);
+  } catch (error) {
+    console.error("Error retrieving file sizes:", error);
+    res.status(500).send("Error retrieving file sizes");
+  }
 });
 
 
