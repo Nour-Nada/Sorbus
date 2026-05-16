@@ -30,10 +30,9 @@ namespace fs = std::filesystem;
 #define PORT 8080 //Server Port
 
 // HTTP
-httplib::Server svr;  //TO-DO: Make it an HTTPS server so that there is encryption
+httplib::Server svr;
 
 //Global Variables
-//TO-DO: Hide variables from file before deployment
 const std::string API_KEY = []() {
     const char* value = std::getenv("FILEAPP_API_KEY");
     return (value && *value) ? std::string(value) : "test12345";
@@ -105,7 +104,7 @@ const std::string BAD_DB_CONNECTION = "Cannot Connect to Database;";
 const std::string NO_HEADER = "There is no Header Attached with this Request.";
 const std::string INCORRECT_API_KEY = "Incorrect API Key.";
 const std::string DB_QUERY_ERROR = "An Error Occurred in Querying the Database;";
-const std::string BAD_PARAMATER = "An Incorrect Parameter was Passed In;";
+const std::string BAD_PARAMETER = "An Incorrect Parameter was Passed In;";
 const std::string UNABLE_TO_RENAME = "The System was Unable to Rename This File;";
 const std::string UNABLE_TO_MOVE = "The System was Unable to Move This File;";
 const std::string UNABLE_TO_DELETE = "The System was Unable to Delete This File;";
@@ -471,8 +470,8 @@ int main(void)
 
             if (access != "viewer" && access != "editor") { //checks to make sure access is not set as owner as the owner can't be changed
                 res.status = 400;
-                std::cout << BAD_PARAMATER << API_PATH << std::endl;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                std::cout << BAD_PARAMETER << API_PATH << std::endl;
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
@@ -484,7 +483,7 @@ int main(void)
             catch (const std::invalid_argument& e) {
                 res.status = 400;
                 std::cout << e.what() << std::endl;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
@@ -494,7 +493,7 @@ int main(void)
             catch (const std::invalid_argument& e) {
                 res.status = 400;
                 std::cout << e.what() << std::endl;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
@@ -550,7 +549,6 @@ int main(void)
                 res.status = 500;
                 std::cout << e.what() << std::endl;
                 res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
-                DB_Open_Connection.commit();
             }
 
             return;
@@ -569,7 +567,7 @@ int main(void)
             catch (const std::invalid_argument& e) {
                 res.status = 400;
                 std::cout << e.what() << std::endl;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
@@ -579,7 +577,7 @@ int main(void)
             catch (const std::invalid_argument& e) {
                 res.status = 400;
                 std::cout << e.what() << std::endl;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
@@ -634,7 +632,6 @@ int main(void)
                 res.status = 500;
                 std::cout << e.what() << std::endl;
                 res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
-                DB_Open_Connection.commit();
                 return;
             }
 
@@ -662,7 +659,7 @@ int main(void)
             } catch (const std::invalid_argument& e) {
                 std::cout << e.what() << std::endl;
                 res.status = 400;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
@@ -744,7 +741,7 @@ int main(void)
             catch (const std::invalid_argument& e) {
                 res.status = 400;
                 std::cout << e.what() << std::endl;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
             try {
@@ -753,7 +750,7 @@ int main(void)
             catch (const std::invalid_argument& e) {
                 res.status = 400;
                 std::cout << e.what() << std::endl;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
@@ -812,7 +809,7 @@ int main(void)
             fs::path safe_file_path;
             if (!build_safe_path(file_location, file_name, safe_file_path)) {
                 res.status = 400;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
             std::string file_path = safe_file_path.string();
@@ -1021,7 +1018,7 @@ int main(void)
             catch (const std::invalid_argument& e) {
                 res.status = 400;
                 std::cout << e.what() << std::endl;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
@@ -1075,7 +1072,7 @@ int main(void)
             fs::path safe_file_path;
             if (!build_safe_path(file_location, "", check_path) || !build_safe_path(file_location, file_name, safe_file_path)) {
                 res.status = 400;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
             std::string file_path = safe_file_path.string();
@@ -1195,7 +1192,7 @@ int main(void)
             catch (const std::invalid_argument& e) {
                 res.status = 400;
                 std::cout << e.what() << std::endl;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
@@ -1255,7 +1252,7 @@ int main(void)
                 fs::path newPath;
                 if (!build_safe_path(folder_path, new_name, newPath)) {
                     res.status = 400;
-                    res.set_content(BAD_PARAMATER, "text/plain");
+                    res.set_content(BAD_PARAMETER, "text/plain");
                     DB_Open_Connection.commit();
                     return;
                 }
@@ -1313,7 +1310,7 @@ int main(void)
             catch (const std::invalid_argument& e) {
                 res.status = 400;
                 std::cout << e.what() << std::endl;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
@@ -1323,7 +1320,7 @@ int main(void)
             catch (const std::invalid_argument& e) {
                 res.status = 400;
                 std::cout << e.what() << std::endl;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
@@ -1403,7 +1400,7 @@ int main(void)
                 fs::path newPath;
                 if (!build_safe_path(file_location, file_name, fullPath) || !build_safe_path(file_location, new_name, newPath)) {
                     res.status = 400;
-                    res.set_content(BAD_PARAMATER, "text/plain");
+                    res.set_content(BAD_PARAMETER, "text/plain");
                     DB_Open_Connection.commit();
                     return;
                 }
@@ -1425,7 +1422,6 @@ int main(void)
                     res.status = 500;
                     std::cout << e.what() << std::endl;
                     res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
-                    DB_Open_Connection.commit();
                     return;
                 }
 
@@ -1435,7 +1431,6 @@ int main(void)
                     res.status = 500;
                     std::cout << e.what() << std::endl;
                     res.set_content(UNABLE_TO_RENAME, "text/plain"); //Sends back error to Node.js backend
-                    DB_Open_Connection.commit();
                     return;
                 }
 
@@ -1468,7 +1463,7 @@ int main(void)
             catch (const std::invalid_argument& e) {
                 res.status = 400;
                 std::cout << e.what() << std::endl;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
@@ -1478,7 +1473,7 @@ int main(void)
             catch (const std::invalid_argument& e) {
                 res.status = 400;
                 std::cout << e.what() << std::endl;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
@@ -1525,7 +1520,6 @@ int main(void)
                 res.status = 500;
                 std::cout << e.what() << std::endl;
                 res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
-                DB_Open_Connection.commit();
                 return;
             }
 
@@ -1552,7 +1546,7 @@ int main(void)
             fs::path newPath;
             if (!build_safe_path(file_location, file_name, oldPath) || !build_safe_path(new_file_location, file_name, newPath)) { //creates a safe new file
                 res.status = 400;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 DB_Open_Connection.commit();
                 return;
             }
@@ -1575,7 +1569,6 @@ int main(void)
                 res.status = 500;
                 std::cout << e.what() << std::endl;
                 res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
-                DB_Open_Connection.commit();
                 return;
             }
 
@@ -1613,7 +1606,7 @@ int main(void)
             catch (const std::invalid_argument& e) {
                 res.status = 400;
                 std::cout << e.what() << std::endl;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
@@ -1623,7 +1616,7 @@ int main(void)
             catch (const std::invalid_argument& e) {
                 res.status = 400;
                 std::cout << e.what() << std::endl;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
@@ -1673,14 +1666,13 @@ int main(void)
                 res.status = 500;
                 std::cout << e.what() << std::endl;
                 res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
-                DB_Open_Connection.commit();
                 return;
             }
 
             fs::path deletePath;
             if (!build_safe_path(file_location, file_name, deletePath)) {
                 res.status = 400;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 DB_Open_Connection.commit();
                 return;
             }
@@ -1727,7 +1719,6 @@ int main(void)
                 res.status = 500;
                 std::cout << e.what() << std::endl;
                 res.set_content(UNABLE_TO_DELETE, "text/plain"); //Sends back error to Node.js backend
-                DB_Open_Connection.commit();
                 return;
             }
 
@@ -1763,7 +1754,7 @@ int main(void)
             catch (const std::invalid_argument& e) {
                 res.status = 400;
                 std::cout << e.what() << std::endl;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
@@ -1827,7 +1818,7 @@ int main(void)
             catch (const std::invalid_argument& e) {
                 res.status = 400;
                 std::cout << e.what() << std::endl;
-                res.set_content(BAD_PARAMATER, "text/plain");
+                res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
@@ -1878,8 +1869,8 @@ int main(void)
                 fs::path new_path(new_file_location);
                 if (!new_path.is_absolute() || new_path.parent_path() == new_path.root_path() || !fs::exists(new_path) || !fs::is_directory(new_path)) {
                     res.status = 400;
-                    std::cout << BAD_PARAMATER << API_PATH << std::endl;
-                    res.set_content(BAD_PARAMATER, "text/plain");
+                    std::cout << BAD_PARAMETER << API_PATH << std::endl;
+                    res.set_content(BAD_PARAMETER, "text/plain");
                     DB_Open_Connection.commit();
                     return;
                 }
