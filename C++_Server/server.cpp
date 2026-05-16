@@ -362,9 +362,19 @@ int main(void)
                     "INSERT INTO users (username, email, password, access) VALUES ($1, $2, $3, $4);",
                     username, email, password, access);
 
+                nlohmann::json response;
+                pqxx::result result = DB_Open_Connection.exec_params(
+                    "SELECT * FROM users WHERE username = $1 OR email = $2", username, email
+                );
+
+                response["user_id"] = result[0]["id"].as<int>();
+                response["username"] = result[0]["username"].c_str();
+                response["access"] = result[0]["access"].c_str();
+
                 DB_Open_Connection.commit();
+
                 res.status = 200;
-                res.set_content("User Successfully Signed Up", "text/plain"); //API response
+                res.set_content(response.dump(), "application/json"); //API response
             }
             catch (const std::exception& e) {
                 res.status = 500;
