@@ -8,6 +8,11 @@
 
 
 
+--Creating the Database--
+
+CREATE DATABASE sorbus;
+
+
 --Creating the Tables--
 
 CREATE TABLE IF NOT EXISTS users (
@@ -82,9 +87,3 @@ INSERT INTO server_info (server_status, register_key, storage_space_remaining, f
 
 --Inserting Data Tests--
 INSERT INTO users (email, username, password, access) VALUES ('test', 'testuser', 'password123', 'owner'); --Inserting new user--
-INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES
-(3, 'test1.txt', '/', 10, '.txt'),
-(3, 'test2.txt', '/', 10, '.txt'),
-(3, 'Hello', '/', 10, 'file'),
-(3, 'test1.txt', '/Hello', 10, '.txt'),
-(3, 'test3.txt', '/', 10, '.txt'); --Inserting new file--

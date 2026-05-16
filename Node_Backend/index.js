@@ -4,6 +4,7 @@ import axios from "axios";
 import dotenv from "dotenv";
 import bcrypt from "bcrypt";
 import rateLimit from 'express-rate-limit'
+import cors from 'cors';
 
 const app = express();
 const port = 3000;
@@ -18,6 +19,7 @@ const limiter = rateLimit({ //The variable to set the rate limits
 });
 
 app.use(express.json());
+app.use(cors({ origin: process.env.CORS_ORIGIN }));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 

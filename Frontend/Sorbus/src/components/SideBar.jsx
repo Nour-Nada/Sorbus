@@ -14,7 +14,7 @@ function SideBar() {
   const [storageUsed, setStorageUsed] = useState(null);
 
   const { username, access } = useAccountContext();
-  const { tree } = useFileContext();
+  const { tree, fileIds } = useFileContext();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -50,6 +50,8 @@ function SideBar() {
     console.log('Selected files:', e.target.files);
   };
 
+  console.log('File IDs:', fileIds);
+
   return (
     <>
       <button className="hamburger" onClick={() => setIsOpen(!isOpen)}>
@@ -72,7 +74,16 @@ function SideBar() {
         {/* Files tree area — populated later from FileContext */}
         <div className="side-bar-files">
           <p className="side-bar-section-label">FILES</p>
-          <div className="side-bar-tree">{/* folder tree goes here */}</div>
+          <div className="side-bar-tree">
+            {Object.keys(fileIds).map((fileName, fileId) => {
+              console.log(fileName, fileId);
+              return (
+                <button className="side-bar-file-btn" key={fileId}>
+                  <p>test</p>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Bottom section — account info and storage */}
