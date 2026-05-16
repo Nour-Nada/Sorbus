@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import bcrypt from "bcrypt";
 import rateLimit from 'express-rate-limit'
 import cors from 'cors';
+import jwt from "jsonwebtoken";
 
 const app = express();
 const port = 3000;
@@ -33,9 +34,6 @@ const C_Server_Route = process.env.C_Server_Route;
 //ROUTES
 
 
-
-
-
 //User Backend Routes
 
 
@@ -58,8 +56,11 @@ app.post("/api/user/signup", limiter, async (req, res) => { //The route to signu
     });
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
-    console.error("Error logging in:", error);
-    res.status(500).send("Error logging in");
+    console.error("Error signing up:", error);
+    if (error.response) {
+      return res.status(error.response.status).send(error.response.data);
+    }
+    res.status(500).send("Error signing up");
   }
 });
 
@@ -81,30 +82,35 @@ app.get("/api/user/login/:username", limiter, async (req, res) => { //The route 
       return res.status(401).send("Invalid credentials");
     }
     const userInfo = { user_id: response.data.user_id, username: response.data.username, access: response.data.access }; //Builds response without exposing the hashed password
-    res.status(200).json(userInfo);
+    const token = jwt.sign(userInfo.user_id, process.env.JWT_SECRET, { expiresIn: '1h' }); //Signs the response with a JWT token that expires in 1 hour
+    res.status(200).json({ ...userInfo, token });
   } catch (error) {
     console.error("Error logging in:", error);
+    if (error.response) {
+      return res.status(error.response.status).send(error.response.data);
+    }
     res.status(500).send("Error logging in");
   }
 });
 
-app.get("/api/user/name", async (req, res) => { //The route to get the file to download
+app.get("/api/user/name", async (req, res) => { //The route to get all usernames
   try {
     const response = await axios.get(`${C_Server_Route}/api/user/name`, {
       headers: {
         "key": API_KEY
       }
     });
-    res.status(response.status);
-    res.json(response.data);
+    res.status(response.status).json(response.data);
   } catch (error) {
     console.error("Error retreving users:", error);
+    if (error.response) {
+      return res.status(error.response.status).send(error.response.data);
+    }
     res.status(500).send("Error retreving users");
   }
-
 });
 
-app.patch("/api/user/change/access/:user_id_main/:user_id_change/:access", async (req, res) => { //The route to get the file to download
+app.patch("/api/user/change/access/:user_id_main/:user_id_change/:access", async (req, res) => { //The route to change a user's access level
   try {
     const { user_id_main, user_id_change, access } = req.params;
     const response = await axios.patch(`${C_Server_Route}/api/user/change/access/${user_id_main}/${user_id_change}/${access}`, {
@@ -112,16 +118,17 @@ app.patch("/api/user/change/access/:user_id_main/:user_id_change/:access", async
         "key": API_KEY
       }
     });
-    res.status(response.status);
-    res.json(response.data);
+    res.status(response.status).json(response.data);
   } catch (error) {
-    console.error("Error retreving users:", error);
-    res.status(500).send("Error retreving users");
+    console.error("Error changing user access:", error);
+    if (error.response) {
+      return res.status(error.response.status).send(error.response.data);
+    }
+    res.status(500).send("Error changing user access");
   }
-
 });
 
-app.delete("/api/user/delete/:user_id_main/:user_id_change", async (req, res) => { //The route to get the file to download
+app.delete("/api/user/delete/:user_id_main/:user_id_change", async (req, res) => { //The route to delete a user
   try {
     const { user_id_main, user_id_change } = req.params;
     const response = await axios.delete(`${C_Server_Route}/api/user/delete/${user_id_main}/${user_id_change}`, {
@@ -129,16 +136,15 @@ app.delete("/api/user/delete/:user_id_main/:user_id_change", async (req, res) =>
         "key": API_KEY
       }
     });
-    res.status(response.status);
-    res.json(response.data);
+    res.status(response.status).json(response.data);
   } catch (error) {
-    console.error("Error retreving users:", error);
-    res.status(500).send("Error retreving users");
+    console.error("Error deleting user:", error);
+    if (error.response) {
+      return res.status(error.response.status).send(error.response.data);
+    }
+    res.status(500).send("Error deleting user");
   }
-
 });
-
-
 
 
 
@@ -152,7 +158,7 @@ app.get("/", async (req, res) => { //The base route
   res.send('API is running (This is the API for the local file upload app');
 });
 
-app.get("/api/files/name/:user_id", async (req, res) => { //The route to get the file to download
+app.get("/api/files/name/:user_id", async (req, res) => { //The route to get the file tree for a user
   const {user_id} = req.params;
   try {
     const response = await axios.get(`${C_Server_Route}/api/files/name/${user_id}`, {
@@ -160,13 +166,14 @@ app.get("/api/files/name/:user_id", async (req, res) => { //The route to get the
         "key": API_KEY
       }
     });
-    res.status(response.status);
-    res.json(response.data);
+    res.status(response.status).json(response.data);
   } catch (error) {
-    console.error("Error signing up:", error);
-    res.status(500).send("Error signing up");
+    console.error("Error retrieving file names:", error);
+    if (error.response) {
+      return res.status(error.response.status).send(error.response.data);
+    }
+    res.status(500).send("Error retrieving file names");
   }
-
 });
 
 app.get("/api/files/download/:file_id/:user_id", async (req, res) => { //The route to get the file to download
@@ -180,28 +187,30 @@ app.get("/api/files/download/:file_id/:user_id", async (req, res) => { //The rou
     }); //Sets reponse equal to API call as well as calling the C++ server API
     res.status(response.status); //Sets the status to the status of the response from the C++ server
     response.data.pipe(res); //Uses response to pipe the data from the frontend to the C++ server
-
   } catch (error) {
     console.error("Error downloading file:", error);
+    if (error.response) {
+      return res.status(error.response.status).send(error.response.data);
+    }
     res.status(500).send("Error downloading file");
   }
 });
 
 app.get("/api/files/storage", async (req, res) => { //The route to get the storage left on the disk
-  const {user_id} = req.params;
   try {
     const response = await axios.get(`${C_Server_Route}/api/files/storage`, {
       headers: {
         "key": API_KEY
       }
     });
-    res.status(response.status);
-    res.send(response.data);
+    res.status(response.status).send(response.data);
   } catch (error) {
     console.error("Error retrieving remaining storage on the disk:", error);
+    if (error.response) {
+      return res.status(error.response.status).send(error.response.data);
+    }
     res.status(500).send("Error retrieving remaining storage on the disk");
   }
-
 });
 
 app.get("/api/files/filesizes", async (req, res) => { //The route to get the sizes of the files in the current location
@@ -211,10 +220,12 @@ app.get("/api/files/filesizes", async (req, res) => { //The route to get the siz
         "key": API_KEY
       }
     });
-    res.status(response.status);
-    res.send(response.data);
+    res.status(response.status).send(response.data);
   } catch (error) {
     console.error("Error retrieving file sizes:", error);
+    if (error.response) {
+      return res.status(error.response.status).send(error.response.data);
+    }
     res.status(500).send("Error retrieving file sizes");
   }
 });
@@ -245,15 +256,13 @@ app.post("/api/files/upload/:user_id", async (req, res) => { //Uploads the given
     response.data.pipe(res); //Pipes the data from the frontend into the C++ server
 
   } catch (error) {
-    console.error("Error uploading file:", error.message); //Displays the error message
-
-    if (error.response) { //If the error has a response, it means the C++ server responded with an error status code
+    console.error("Error uploading file:", error);
+    if (error.response) {
       res.status(error.response.status);
-      error.response.data.pipe(res);
+      error.response.data.pipe(res); //Pipes the error stream from the C++ server
       return;
     }
-
-    res.status(500).send("Upload failed");
+    res.status(500).send("Error uploading file");
   }
 });
 
@@ -266,10 +275,12 @@ app.post("/api/files/create/:user_id", async (req, res) => { //Creates a new fil
       data: { new_name: req.body.new_name, folder_path: req.body.folder_path },
       headers: { "Content-Type": "application/json", key: API_KEY },
     });
-
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
-    console.error("Error creating file:", error.message); //Displays the error message
+    console.error("Error creating file:", error);
+    if (error.response) {
+      return res.status(error.response.status).send(error.response.data);
+    }
     res.status(500).send("Error creating a new file");
   }
 });
@@ -291,6 +302,9 @@ app.patch("/api/files/name/:file_id/:user_id", async (req, res) => { //The route
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
     console.error("Error changing file name:", error);
+    if (error.response) {
+      return res.status(error.response.status).send(error.response.data);
+    }
     res.status(500).send("Error changing file name");
   }
 });
@@ -307,6 +321,9 @@ app.patch("/api/files/move/:file_id/:user_id", async (req, res) => { //The route
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
     console.error("Error changing file location:", error);
+    if (error.response) {
+      return res.status(error.response.status).send(error.response.data);
+    }
     res.status(500).send("Error changing file location");
   }
 });
@@ -325,19 +342,18 @@ app.delete("/api/files/delete/:file_id/:user_id", async (req, res) => { //The ro
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
     console.error("Error deleting the file:", error);
+    if (error.response) {
+      return res.status(error.response.status).send(error.response.data);
+    }
     res.status(500).send("Error deleting the file");
   }
 });
 
 
 
-
-
 //Extra Functionality Backend Routes
 
 
-
-//Patch Routes
 
 app.get("/api/features/location", async (req, res) => { //Returns the current absolute file path
   try {
@@ -349,6 +365,9 @@ app.get("/api/features/location", async (req, res) => { //Returns the current ab
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
     console.error("Error retrieving the file path:", error);
+    if (error.response) {
+      return res.status(error.response.status).send(error.response.data);
+    }
     res.status(500).send("Error retrieving the file path");
   }
 });
@@ -364,6 +383,9 @@ app.patch("/api/features/reinitialize/:user_id", limiter, async (req, res) => { 
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
     console.error("Error reinitializing the files:", error);
+    if (error.response) {
+      return res.status(error.response.status).send(error.response.data);
+    }
     res.status(500).send("Error reinitializing the files");
   }
 });
@@ -380,11 +402,12 @@ app.patch("/api/features/location/:user_id", limiter, async (req, res) => { //Ch
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
     console.error("Error changing the folder:", error);
+    if (error.response) {
+      return res.status(error.response.status).send(error.response.data);
+    }
     res.status(500).send("Error changing the folder");
   }
 });
-
-
 
 
 
