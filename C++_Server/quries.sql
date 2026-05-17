@@ -42,7 +42,6 @@ CREATE TABLE IF NOT EXISTS server_info (
     id SMALLINT PRIMARY KEY DEFAULT 1,
     server_status INTEGER NOT NULL,
     register_key TEXT NOT NULL,
-    storage_space_remaining BIGINT NOT NULL,
     file_location TEXT NOT NULL DEFAULT '',
     CONSTRAINT single_row CHECK (id = 1)
 );
@@ -87,3 +86,4 @@ INSERT INTO server_info (server_status, register_key, storage_space_remaining, f
 
 --Inserting Data Tests--
 INSERT INTO users (email, username, password, access) VALUES ('test', 'testuser', 'password123', 'owner'); --Inserting new user--
+INSERT INTO server_info (server_status, register_key, file_location) VALUES (200, '123456', 'C:/Users/nour2/Videos/Test'); --Inserting server information--

@@ -89,24 +89,6 @@
     gap: 8px;
 }
 
-.admin-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 8px 10px;
-    background-color: #252d47;
-    color: #cdd5e0;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 0.85rem;
-}
-
-.admin-btn:hover {
-    background-color: #2e3a58;
-}
-
 .side-bar-user {
     display: flex;
     align-items: center;

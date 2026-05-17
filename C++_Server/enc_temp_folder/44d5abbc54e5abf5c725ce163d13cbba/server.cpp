@@ -242,7 +242,6 @@ int main(void)
 
     svr.set_pre_request_handler([&](const httplib::Request& req, httplib::Response& res) { //Does the api key check logic before even allowing any routes to  be hit
             LOG_TIME();
-
             std::string API_PATH = req.path;
 
             // Require API key

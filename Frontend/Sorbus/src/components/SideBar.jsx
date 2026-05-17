@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAccountContext } from '../context/AccountContext.jsx';
+import { useFileContext } from '../context/FileContext.jsx';
+import { useAuthContext } from '../context/AuthContext.jsx';
 import axios from 'axios';
 import '../styles/SideBar.css';
 import sorbusLogo from '../assets/sorbus_logo.png';
-import { useAccountContext } from '../context/AccountContext.jsx';
-import { useFileContext } from '../context/FileContext.jsx';
 
 function SideBar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -15,6 +16,7 @@ function SideBar() {
 
   const { username, access } = useAccountContext();
   const { tree, fileIds } = useFileContext();
+  const { logout } = useAuthContext();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -49,6 +51,12 @@ function SideBar() {
     // Receives files from file picker — wire up API call here later
     console.log('Selected files:', e.target.files);
   };
+
+  const handleLogout = (e) => {
+    e.stopPropagation();
+    logout();
+    navigate('/login');
+};
 
   console.log('File IDs:', fileIds);
 
@@ -88,20 +96,13 @@ function SideBar() {
 
         {/* Bottom section — account info and storage */}
         <div className="side-bar-bottom">
-          {access === 'owner' && (
-            <button className="admin-btn" onClick={() => navigate('/account')}>
-              <span className="material-icons">settings</span>
-              Admin Panel
-            </button>
-          )}
-
           <div className="side-bar-user" onClick={() => navigate('/account')}>
             <div className="user-avatar">{username ? username[0].toUpperCase() : '?'}</div>
             <div className="user-info">
               <p className="user-name">{username || 'Unknown'}</p>
               <p className="user-role">{access || '—'}</p>
             </div>
-            <button className="logout-btn" title="Logout" onClick={(e) => e.stopPropagation()}>
+            <button className="logout-btn" title="Logout" onClick={handleLogout}>
               <span className="material-icons">logout</span>
             </button>
           </div>

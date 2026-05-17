@@ -82,7 +82,7 @@ app.post("/api/user/signup", limiter, async (req, res) => { //The route to signu
   }
 });
 
-app.get("/api/user/login/:username", limiter, async (req, res) => { //The route to login
+app.post("/api/user/login/:username", limiter, async (req, res) => { //The route to login
   try {
     const {username} = req.params;
     const response = await axios({
@@ -91,9 +91,6 @@ app.get("/api/user/login/:username", limiter, async (req, res) => { //The route 
       headers: {
         "key": API_KEY
       },
-      data: {
-        username: username
-      }
     });
     const passwordMatch = await bcrypt.compare(req.body.password, response.data.password); //Compares the password from the frontend with the hashed password from the C++ server using bcrypt
     if (!passwordMatch) {
