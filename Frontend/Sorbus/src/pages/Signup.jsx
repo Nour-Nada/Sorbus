@@ -8,6 +8,8 @@ import sorbusLogo from '../assets/sorbus_logo.png';
 
 function Signup() {
   const [error, setError] = useState(false);
+  const [usernameError, setUsernameError] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -55,13 +57,30 @@ function Signup() {
         </div>
         <form className="login-form" onSubmit={(e) => { e.preventDefault(); signUp(); }}>
           <p className="form-label">USERNAME</p>
-          <input type="text" placeholder="Enter your username" value={username} onChange={(e) => setUsername(e.target.value)} />
+          <input
+            type="text"
+            placeholder="Enter your username"
+            value={username}
+            pattern="[a-zA-Z0-9_]+"
+            required
+            onChange={(e) => { setUsername(e.target.value); setUsernameError(''); }}
+            onInvalid={(e) => { e.preventDefault(); setUsernameError(e.target.validity.valueMissing ? 'Username is required.' : 'Only letters, numbers, and underscores allowed.'); }}
+          />
+          {usernameError && <p className="field-error">{usernameError}</p>}
           <p className="form-label">EMAIL</p>
-          <input type="email" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input
+            type="email"
+            placeholder="Enter your email"
+            value={email}
+            required
+            onChange={(e) => { setEmail(e.target.value); setEmailError(''); }}
+            onInvalid={(e) => { e.preventDefault(); setEmailError(e.target.validity.valueMissing ? 'Email is required.' : 'Please enter a valid email address.'); }}
+          />
+          {emailError && <p className="field-error">{emailError}</p>}
           <p className="form-label">PASSWORD</p>
-          <input type="password" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <input type="password" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           <p className="form-label">REGISTRATION KEY</p>
-          <input type="password" placeholder="Enter your registration key" value={regKey} onChange={(e) => setRegKey(e.target.value)} />
+          <input type="password" placeholder="Enter your registration key" value={regKey} onChange={(e) => setRegKey(e.target.value)} required />
           <p className="helper-text">Contact your server owner for a registration key.</p>
           <button type="submit" className="submit-btn">Create Account</button>
         </form>

@@ -125,6 +125,16 @@
     background-color: #3a72c0;
 }
 
+.field-error {
+    font-size: 0.72rem;
+    color: #c0392b;
+    background-color: #fdf0ef;
+    border: 1px solid #f5c6c2;
+    border-radius: 6px;
+    padding: 5px 10px;
+    margin-top: 2px;
+}
+
 .helper-text {
     font-size: 0.6rem;
     color: #8892a4;

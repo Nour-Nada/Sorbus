@@ -52,7 +52,16 @@ const C_Server_Route = process.env.C_Server_Route;
 
 
 
+const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 app.post("/api/user/signup", limiter, async (req, res) => { //The route to signup
+  if (!USERNAME_REGEX.test(req.body.username)) {
+    return res.status(400).send("Username may only contain letters, numbers, and underscores.");
+  }
+  if (!EMAIL_REGEX.test(req.body.email)) {
+    return res.status(400).send("Invalid email format.");
+  }
   try {
     const password = await bcrypt.hash(req.body.password, 10); //Hashes the password using bcrypt before sending it to the C++ server
     const response = await axios({
