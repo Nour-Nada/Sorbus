@@ -11,7 +11,7 @@ function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
-  const { login } = useAuthContext();
+  const { login, isLoggedIn } = useAuthContext();
   const { setUserId, setUsername: setAccountUsername, setAccess } = useAccountContext();
   const navigate = useNavigate();
   const location = useLocation();
@@ -33,11 +33,12 @@ function Login() {
 
   return (
     <div className="login">
+      {isLoggedIn && navigate('/home')}
       <div className="login-box">
-        <div className="login-logo">
+        <button className="login-logo" onClick={() => navigate('/')}>
           <img src={sorbusLogo} alt="Sorbus Logo" />
           <p>Sorbus</p>
-        </div>
+        </button>
         {error && (
           <div className="error-text">
             <p>Invalid username or password.</p>

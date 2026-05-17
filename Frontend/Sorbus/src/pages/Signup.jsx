@@ -15,7 +15,7 @@ function Signup() {
   const [password, setPassword] = useState('');
   const [regKey, setRegKey] = useState('');
 
-  const { login } = useAuthContext();
+  const { login, isLoggedIn } = useAuthContext();
   const { setUserId, setUsername: setAccountUsername, setAccess } = useAccountContext();
   const navigate = useNavigate();
   const location = useLocation();
@@ -37,11 +37,12 @@ function Signup() {
 
   return (
     <div className="login">
+      {isLoggedIn && navigate('/home')}
       <div className="login-box">
-        <div className="login-logo">
+        <button className="login-logo" onClick={() => navigate('/')}>
           <img src={sorbusLogo} alt="Sorbus Logo" />
           <p>Sorbus</p>
-        </div>
+        </button>
         {error && (
           <div className="error-text">
             <p>Could not create account. Check your registration key.</p>
