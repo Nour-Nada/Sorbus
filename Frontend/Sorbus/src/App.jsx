@@ -7,6 +7,9 @@ import Account from './pages/Account.jsx'
 import Login from './pages/Login.jsx'
 import Signup from './pages/Signup.jsx'
 import LandingPage from './pages/LandingPage.jsx'
+import RedirectPage from './pages/RedirectPage.jsx'
+import UnauthorizedPage from './pages/UnauthorizedPage.jsx'
+import ProtectedRoutes from './utils/ProtectedRoutes.jsx'
 import axios from 'axios'
 import './styles/App.css'
 
@@ -24,11 +27,16 @@ function App() {
       <AccountProvider>
         <FileProvider>
           <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/account" element={<Account />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
-            <Route path="/landingpage" element={<LandingPage />} />
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/unauthorized" element={<UnauthorizedPage />} />
+            <Route path="*" element={<RedirectPage />} />
+
+            <Route element={<ProtectedRoutes />}>
+              <Route path="/home" element={<Home />} />
+              <Route path="/account" element={<Account />} />
+            </Route>
           </Routes>
         </FileProvider>
       </AccountProvider>

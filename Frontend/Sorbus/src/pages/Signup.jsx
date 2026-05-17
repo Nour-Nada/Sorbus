@@ -29,7 +29,7 @@ function Signup() {
       setUserId(user_id);
       setAccountUsername(returnedUsername);
       setAccess(access);
-      navigate('/');
+      navigate('/home');
     } catch {
       setError(true);
     }

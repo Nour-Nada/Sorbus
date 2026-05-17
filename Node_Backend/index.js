@@ -43,6 +43,10 @@ app.use(express.static("public"));
 const API_KEY = process.env.API_KEY;
 const C_Server_Route = process.env.C_Server_Route;
 
+//Other variables
+const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 
 
 //ROUTES
@@ -52,8 +56,11 @@ const C_Server_Route = process.env.C_Server_Route;
 
 
 
-const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+
+app.get("/api/user/verify", verifyJWT, (req, res) => { //a route to validate the validity of the JWT from the frontend
+  res.status(200).send("OK");
+});
 
 app.post("/api/user/signup", limiter, async (req, res) => { //The route to signup
   if (!USERNAME_REGEX.test(req.body.username)) {

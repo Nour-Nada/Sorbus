@@ -1,0 +1,73 @@
+.redirect-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background-color: #f5f5f5;
+}
+
+.redirect-box {
+    width: 400px;
+    padding: 40px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    outline: 1px solid #e0e6f0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.redirect-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    font-size: 1rem;
+    color: #1a2035;
+    margin-bottom: 12px;
+}
+
+.redirect-logo img {
+    width: 26px;
+    object-fit: contain;
+}
+
+.redirect-code {
+    font-size: 4rem;
+    font-weight: bold;
+    color: #1a2035;
+    line-height: 1;
+    margin: 0;
+}
+
+.redirect-message {
+    font-size: 0.9rem;
+    color: #8892a4;
+    margin: 0 0 20px 0;
+}
+
+.redirect-actions {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+}
+
+.redirect-actions button {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #e0e6f0;
+    border-radius: 8px;
+    background: white;
+    color: #1a2035;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.redirect-actions button:hover {
+    background: #f5f5f5;
+    border-color: #2e5fa3;
+    color: #2e5fa3;
+}

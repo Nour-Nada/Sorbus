@@ -20,7 +20,7 @@ function LandingPage() {
       <div className="landing-hero">
         <div className="hero-glow" />
         <h1>Your secure and private<br />file storage solution.</h1>
-        <p className="hero-subtitle">Access your files from anywhere.</p>
+        <p className="hero-subtitle">Access your local files from anywhere.</p>
         <Link to="/signup" className="cta-button">Get Started <span className="material-icons">arrow_forward</span></Link>
       </div>
     </div>

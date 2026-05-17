@@ -69,9 +69,9 @@ function SideBar() {
       <div className={`side-bar ${isOpen ? 'open' : ''}`}>
 
         {/* Logo */}
-        <div className="side-bar-logo">
+        <button className="side-bar-logo" onClick={() => navigate('/')}>
           <img src={sorbusLogo} alt="Sorbus Logo" />
-        </div>
+        </button>
 
         {/* Upload button */}
         <button className="upload-btn" onClick={() => setIsUploadOpen(true)}>
