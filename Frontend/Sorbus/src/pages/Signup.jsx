@@ -1,4 +1,4 @@
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuthContext } from '../context/AuthContext.jsx';
 import { useAccountContext } from '../context/AccountContext.jsx';
@@ -35,9 +35,10 @@ function Signup() {
     }
   };
 
+  if(isLoggedIn) return <Navigate to="/home" replace/>; //routes them to the file page if they are already logged in
+
   return (
     <div className="login">
-      {isLoggedIn && navigate('/home')}
       <div className="login-box">
         <button className="login-logo" onClick={() => navigate('/')}>
           <img src={sorbusLogo} alt="Sorbus Logo" />

@@ -93,6 +93,13 @@
     gap: 8px;
 }
 
+.side-bar-user-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+}
+
 .side-bar-user {
     display: flex;
     align-items: center;
@@ -100,6 +107,7 @@
     cursor: pointer;
     border-radius: 8px;
     padding: 4px;
+    flex: 1;
 }
 
 .side-bar-user:hover {

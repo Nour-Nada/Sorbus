@@ -15,7 +15,7 @@ function RedirectPage() {
         <p className="redirect-code">404</p>
         <p className="redirect-message">This page doesn't exist.</p>
         <div className="redirect-actions">
-          <button onClick={() => navigate('/landingpage')}>Go to Home</button>
+          <button onClick={() => navigate('/')}>Go to Home</button>
           <button onClick={() => navigate('/login')}>Go to Login</button>
         </div>
       </div>

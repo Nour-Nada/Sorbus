@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAccountContext } from '../context/AccountContext.jsx';
 import { useFileContext } from '../context/FileContext.jsx';
 import { useAuthContext } from '../context/AuthContext.jsx';
+import { flushSync } from 'react-dom';
 import axios from 'axios';
 import '../styles/SideBar.css';
 import sorbusLogo from '../assets/sorbus_logo.png';
@@ -54,9 +55,9 @@ function SideBar() {
 
   const handleLogout = (e) => {
     e.stopPropagation();
-    logout();
+    flushSync(() => logout()); //need to put a flush sync here to ensure logout state updates before navigate runs and because otherwise the ProtectedRoute componet updates later then the navigate runs and causes the unauthorized page to show up instead
     navigate('/login');
-};
+  };
 
   console.log('File IDs:', fileIds);
 
@@ -96,11 +97,13 @@ function SideBar() {
 
         {/* Bottom section — account info and storage */}
         <div className="side-bar-bottom">
-          <div className="side-bar-user" onClick={() => navigate('/account')}>
-            <div className="user-avatar">{username ? username[0].toUpperCase() : '?'}</div>
-            <div className="user-info">
-              <p className="user-name">{username || 'Unknown'}</p>
-              <p className="user-role">{access || '—'}</p>
+          <div className="side-bar-user-row">
+            <div className="side-bar-user" onClick={() => navigate('/account')}>
+              <div className="user-avatar">{username ? username[0].toUpperCase() : '?'}</div>
+              <div className="user-info">
+                <p className="user-name">{username || 'Unknown'}</p>
+                <p className="user-role">{access || '—'}</p>
+              </div>
             </div>
             <button className="logout-btn" title="Logout" onClick={handleLogout}>
               <span className="material-icons">logout</span>
