@@ -12,7 +12,7 @@ function Login() {
   const [password, setPassword] = useState('');
 
   const { login, isLoggedIn } = useAuthContext();
-  const { setUserId, setUsername: setAccountUsername, setAccess } = useAccountContext();
+  const { updateUserId, setUsername: setAccountUsername, setAccess } = useAccountContext();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -22,7 +22,7 @@ function Login() {
       const response = await axios.post(`/api/user/login/${username}`, { password });
       const { user_id, username: returnedUsername, access, jwt_token } = response.data;
       login(jwt_token);
-      setUserId(user_id);
+      updateUserId(user_id);
       setAccountUsername(returnedUsername);
       setAccess(access);
       navigate('/home');

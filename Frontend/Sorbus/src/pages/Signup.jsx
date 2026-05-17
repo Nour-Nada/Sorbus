@@ -16,7 +16,7 @@ function Signup() {
   const [regKey, setRegKey] = useState('');
 
   const { login, isLoggedIn } = useAuthContext();
-  const { setUserId, setUsername: setAccountUsername, setAccess } = useAccountContext();
+  const { updateUserId, setUsername: setAccountUsername, setAccess } = useAccountContext();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -26,7 +26,7 @@ function Signup() {
       const response = await axios.post(`/api/user/signup`, { username, email, password, reg_key: regKey });
       const { user_id, username: returnedUsername, access, jwt_token } = response.data;
       login(jwt_token);
-      setUserId(user_id);
+      updateUserId(user_id);
       setAccountUsername(returnedUsername);
       setAccess(access);
       navigate('/home');
