@@ -29,13 +29,13 @@ const verifyJWT = (req, res, next) => { //The function to verify the JWT token f
     req.userId = decoded.userId;
     next();
   } catch (error) {
-    res.status(401).send("Invalid token.");
+    res.status(401).send("Invalid JWT token."); //Do not change this error message as the frontend checks for this exact message to know when to log the user out due to an invalid JWT token which can occur when a token expires or is tampered with
   }
 };
 
 const verifyUserId = (paramName = 'user_id') => (req, res, next) => { //Checks that the user_id in the URL matches the JWT userId
   if (parseInt(req.params[paramName]) !== req.userId) {
-    return res.status(403).send("Access denied: user ID mismatch.");
+    return res.status(403).send("Access denied: user ID mismatch."); //Do not change this error message as the frontend checks for this exact message to know when to log the user out due to a user ID mismatch which can occur when a user's access is changed or they are deleted while they are logged in
   }
   next();
 };
