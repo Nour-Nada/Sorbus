@@ -79,3 +79,4 @@ CMakeUserPresets.json
 x64/
 C++_Server_VS/
 .vs/
+enc_temp_folder/

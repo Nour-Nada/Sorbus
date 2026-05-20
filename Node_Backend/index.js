@@ -6,6 +6,7 @@ import bcrypt from "bcrypt";
 import rateLimit from 'express-rate-limit'
 import cors from 'cors';
 import jwt from "jsonwebtoken";
+import cookieParser from "cookie-parser";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -92,7 +93,7 @@ app.post("/api/user/signup", limiter, async (req, res) => { //The route to signu
       }
     });
     const token = jwt.sign({ userId: response.data.user_id }, process.env.JWT_SECRET, {
-      expiresIn: '1h'
+      expiresIn: '300'
     }); //Signs the response with a JWT token that expires in 1 hour
     const userInfo = { user_id: response.data.user_id, username: response.data.username, access: response.data.access, jwt_token: token }; //Builds response without exposing the hashed password
     res.status(response.status).json(userInfo); //Sets the status to the status of the response from the C++ server
@@ -120,7 +121,7 @@ app.post("/api/user/login/:username", limiter, async (req, res) => { //The route
       return res.status(401).send("Invalid credentials");
     }
     const token = jwt.sign({ userId: response.data.user_id }, process.env.JWT_SECRET, {
-      expiresIn: '1h'
+      expiresIn: '300'
     }); //Signs the response with a JWT token that expires in 1 hour
     const userInfo = { user_id: response.data.user_id, username: response.data.username, access: response.data.access, jwt_token: token }; //Builds response without exposing the hashed password
     res.status(200).json(userInfo);
