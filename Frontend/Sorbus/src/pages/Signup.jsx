@@ -23,7 +23,7 @@ function Signup() {
   const signUp = async () => {
     // Sends signup request and stores session data on success
     try {
-      const response = await axios.post(`/api/user/signup`, { username, email, password, reg_key: regKey });
+      const response = await axios.post(`/api/user/signup`, { username, email, password, reg_key: regKey }, { _retry: true });
       const { user_id, username: returnedUsername, access, jwt_token } = response.data;
       login(jwt_token);
       updateUserId(user_id);

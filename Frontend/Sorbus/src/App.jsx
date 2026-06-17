@@ -1,4 +1,4 @@
-﻿import { Routes, Route } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext.jsx'
 import { AccountProvider } from './context/AccountContext.jsx'
 import { FileProvider } from './context/FileContext.jsx'
@@ -10,40 +10,69 @@ import LandingPage from './pages/LandingPage.jsx'
 import RedirectPage from './pages/RedirectPage.jsx'
 import UnauthorizedPage from './pages/UnauthorizedPage.jsx'
 import ProtectedRoutes from './utils/ProtectedRoutes.jsx'
+import { getAccessToken, setAccessToken } from './context/AuthContext.jsx'
 import axios from 'axios'
 import './styles/App.css'
 
-const clearSession = (err_code) => { //Clears the session and redirects to login
-  localStorage.removeItem('token');
+const clearSession = (err_code) => { //Clears the in-memory token, removes userId, calls server logout to clear the cookie, then redirects
+  setAccessToken(null);
   localStorage.removeItem('userId');
-  //To refresh the app we use this method instead of a navigate because we need to reset all the state in the app and this is the most straightforward way to do it without having to set up a global state for it or something like that
-  if (err_code === 401) { //executes if the JWT token is invalid which can occur when it expires or is tampered with (a more gracefull logout then randomly directed to login)
-    //window.location.href = '/unauthorized'; // eslint-disable-line
-    //trusts that the ProtectedRoute component will redirect to the unauthorized page and just directs to the login page so that the user doesn't see a flash of the unauthorized page which can be confusing and isn't really necessary since the user is being logged out anyway
-  }
-  else { //executes if tampering was done with the stored user id of some other error occured that caused an abrubt logout (a more abrupt logout but this should be a very rare edge case and the user is being logged out anyway so it isn't really a problem)
-    //A small flash happens when redirecting if this route is taken. However this can be tolerated as the only reason this route would be hit is if something went very wrong or somone malicous is trying to gain unauthorized access and in either case the user is being logged out anyway so it isn't really a problem.
-    window.location.href = '/login'; // eslint-disable-line
-  }
+  axios.post('/api/user/logout', {}, { withCredentials: true, _retry: true }).catch(() => {});
+  window.location.href = err_code === 401 ? '/unauthorized' : '/login';
 };
 
-axios.interceptors.request.use((config) => { //Attaches JWT to every outgoing request
-  const token = localStorage.getItem('token');
-  if (token) { //checks if the token exists and if it does it adds it to the header of the request
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+let isRefreshing = false; //Tracks whether a /refresh call is already in flight
+let failedQueue = []; //Holds resolve/reject pairs for requests that arrived while a refresh was in progress
+
+const processQueue = (error, token = null) => { //Drains the queue after a refresh attempt, resolving or rejecting each waiting request
+  failedQueue.forEach(({ resolve, reject }) => error ? reject(error) : resolve(token));
+  failedQueue = [];
+};
+
+axios.interceptors.request.use((config) => { //Attaches the in-memory access token to every outgoing request
+  const token = getAccessToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-axios.interceptors.response.use( //Clears session on invalid or mismatched session
+axios.interceptors.response.use( //On 401, silently refreshes the access token and retries; on 403 mismatch, clears session
   (response) => response,
-  (error) => {
-    if ((error.response?.status === 401 && error.response?.data === 'Invalid JWT token.')) {
-      clearSession(401);
+  async (error) => {
+    const originalRequest = error.config;
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) { //Another refresh is already in flight — queue this request until it resolves
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then(token => {
+          originalRequest._retry = true;
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return axios(originalRequest);
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const { data } = await axios.post('/api/user/refresh', {}, { withCredentials: true, _retry: true });
+        setAccessToken(data.jwt_token);
+        processQueue(null, data.jwt_token);
+        originalRequest.headers.Authorization = `Bearer ${data.jwt_token}`;
+        return axios(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError, null);
+        clearSession(401);
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
     }
-    else if ((error.response?.status === 403 && error.response?.data === 'Access denied: user ID mismatch.')) {
+
+    if (error.response?.status === 403 && error.response?.data === 'Access denied: user ID mismatch.') {
       clearSession(403);
     }
+
     return Promise.reject(error);
   }
 );

@@ -5,42 +5,44 @@ const AuthContext = createContext();
 
 export const useAuthContext = () => useContext(AuthContext);
 
+// Module-level variable so the Axios interceptor in App.jsx can always read the latest token without stale closures
+let _accessToken = null;
+export const getAccessToken = () => _accessToken;
+export const setAccessToken = (t) => { _accessToken = t; };
+
 export const AuthProvider = ({ children }) => {
-    const [token, setToken] = useState(localStorage.getItem('token') || null);
+    const [token, setToken] = useState(null); // Kept for any consumers; synced with _accessToken
     const [isLoggedIn, setIsLoggedIn] = useState(null);
 
     useEffect(() => {
-        // Verifies the stored token with the server on mount — null means still checking
-        const verify = async () => {
-            if (!localStorage.getItem('token')) {
-                setIsLoggedIn(false);
-                return;
-            }
+        // On mount, restore the session silently via the refresh token cookie instead of reading localStorage
+        const restore = async () => {
             try {
-                await axios.get('/api/user/verify');
+                const { data } = await axios.post('/api/user/refresh', {}, { withCredentials: true, _retry: true });
+                setAccessToken(data.jwt_token);
+                setToken(data.jwt_token);
                 setIsLoggedIn(true);
             } catch {
-                localStorage.removeItem('token');
-                setToken(null);
                 setIsLoggedIn(false);
             }
         };
-        verify();
+        restore();
     }, []);
 
     const login = (newToken) => {
         // Call this after a successful login with the JWT returned from Node.js
-        localStorage.setItem('token', newToken);
+        setAccessToken(newToken);
         setToken(newToken);
         setIsLoggedIn(true);
     };
 
     const logout = () => {
         // Call this to clear the session
-        localStorage.removeItem('token');
-        localStorage.removeItem('userId');
+        setAccessToken(null);
         setToken(null);
         setIsLoggedIn(false);
+        localStorage.removeItem('userId');
+        axios.post('/api/user/logout', {}, { withCredentials: true, _retry: true }).catch(() => {});
     };
 
     return (
