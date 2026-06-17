@@ -23,6 +23,7 @@ const limiter = rateLimit({ //The variable to set the rate limits
 const verifyJWT = (req, res, next) => { //The function to verify the JWT token for protected routes
   const token = req.headers['authorization']?.split(' ')[1]; //Gets the token from the header
   if (!token) {
+    console.warn(`Auth rejected (401): no token provided for ${req.method} ${req.originalUrl}`); //Logs the missing-token rejection without changing the client response
     return res.status(401).send("Access denied. No token provided.");
   }
   try {
@@ -30,12 +31,14 @@ const verifyJWT = (req, res, next) => { //The function to verify the JWT token f
     req.userId = decoded.userId;
     next();
   } catch (error) {
+    console.warn(`Auth rejected (401): invalid token for ${req.method} ${req.originalUrl} — ${error.message}`); //Logs the invalid-token rejection (e.g. expired/tampered/wrong secret) without changing the client response
     res.status(401).send("Invalid JWT token."); //Do not change this error message as the frontend checks for this exact message to know when to log the user out due to an invalid JWT token which can occur when a token expires or is tampered with
   }
 };
 
 const verifyUserId = (paramName = 'user_id') => (req, res, next) => { //Checks that the user_id in the URL matches the JWT userId
   if (parseInt(req.params[paramName]) !== req.userId) {
+    console.warn(`Auth rejected (403): user ID mismatch on ${req.method} ${req.originalUrl} — token userId ${req.userId} vs param ${req.params[paramName]}`); //Logs the user-ID-mismatch rejection without changing the client response
     return res.status(403).send("Access denied: user ID mismatch."); //Do not change this error message as the frontend checks for this exact message to know when to log the user out due to a user ID mismatch which can occur when a user's access is changed or they are deleted while they are logged in
   }
   next();
