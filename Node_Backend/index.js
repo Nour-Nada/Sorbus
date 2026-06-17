@@ -78,7 +78,7 @@ app.post("/api/user/refresh", (req, res) => { //Issues a new access token using 
   if (!token) return res.status(401).send("No refresh token.");
   try {
     const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
-    const newToken = jwt.sign({ userId: decoded.userId }, process.env.JWT_SECRET, { expiresIn: '300' });
+    const newToken = jwt.sign({ userId: decoded.userId }, process.env.JWT_SECRET, { expiresIn: 300 });
     res.status(200).json({ jwt_token: newToken });
   } catch {
     res.clearCookie('refreshToken', REFRESH_COOKIE_OPTIONS);
@@ -118,7 +118,7 @@ app.post("/api/user/signup", limiter, async (req, res) => { //The route to signu
       }
     });
     const token = jwt.sign({ userId: response.data.user_id }, process.env.JWT_SECRET, {
-      expiresIn: '300'
+      expiresIn: 300
     }); //Signs the response with a JWT token that expires in 1 hour
     res.cookie('refreshToken', signRefreshToken(response.data.user_id), REFRESH_COOKIE_OPTIONS);
     const userInfo = { user_id: response.data.user_id, username: response.data.username, access: response.data.access, jwt_token: token }; //Builds response without exposing the hashed password
@@ -147,7 +147,7 @@ app.post("/api/user/login/:username", limiter, async (req, res) => { //The route
       return res.status(401).send("Invalid credentials");
     }
     const token = jwt.sign({ userId: response.data.user_id }, process.env.JWT_SECRET, {
-      expiresIn: '300'
+      expiresIn: 300
     }); //Signs the response with a JWT token that expires in 1 hour
     res.cookie('refreshToken', signRefreshToken(response.data.user_id), REFRESH_COOKIE_OPTIONS);
     const userInfo = { user_id: response.data.user_id, username: response.data.username, access: response.data.access, jwt_token: token }; //Builds response without exposing the hashed password
