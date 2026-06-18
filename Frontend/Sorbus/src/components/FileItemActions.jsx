@@ -67,7 +67,7 @@ function FileItemActions({ name, node, isFolder, openFolder, onRenameStart, onMo
             <button className="fv-act-btn" title="Download" onClick={handleFolderDownload}>
               <span className="material-icons">download</span>
             </button>
-            <button className="fv-act-btn" title="Move" onClick={e => { e.stopPropagation(); onMoveStart([{ name, node, isFolder: true }]); }}>
+            <button className="fv-act-btn fv-act-move" title="Move" onClick={e => { e.stopPropagation(); onMoveStart([{ name, node, isFolder: true }]); }}>
               <span className="material-icons">drive_file_move_outline</span>
             </button>
             <button className="fv-act-btn" title="Rename" onClick={e => { e.stopPropagation(); onRenameStart(name, handleRenameSubmit); }}>
@@ -82,7 +82,7 @@ function FileItemActions({ name, node, isFolder, openFolder, onRenameStart, onMo
             <button className="fv-act-btn" title="Download" onClick={handleDownload}>
               <span className="material-icons">download</span>
             </button>
-            <button className="fv-act-btn" title="Move" onClick={e => { e.stopPropagation(); onMoveStart([{ name, node, isFolder: false }]); }}>
+            <button className="fv-act-btn fv-act-move" title="Move" onClick={e => { e.stopPropagation(); onMoveStart([{ name, node, isFolder: false }]); }}>
               <span className="material-icons">drive_file_move_outline</span>
             </button>
             <button className="fv-act-btn" title="Rename" onClick={e => { e.stopPropagation(); onRenameStart(name, handleRenameSubmit); }}>

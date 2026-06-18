@@ -194,14 +194,14 @@
 .fv-shelf::-webkit-scrollbar-thumb:hover { background: #4e5e80; }
 
 .fv-card {
-    width: 106px;
-    height: 128px;
+    width: 132px;
+    height: 132px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
     gap: 6px;
-    padding: 14px 10px 10px;
+    padding: 14px 8px 8px;
     background: #111827;
     border: 1px solid #1e2640;
     border-radius: 8px;
@@ -261,7 +261,11 @@
 .fv-card .fv-actions {
     margin-top: auto;
     justify-content: center;
-    gap: 4px;
+    gap: 2px;
+}
+
+.fv-card .fv-act-btn {
+    padding: 2px;
 }
 
 .fv-act-btn {
@@ -389,11 +393,29 @@
 .fv-folder-row .fv-row-icon { color: #2e5fa3; }
 .fv-file-row .fv-row-icon { color: #3a5070; }
 
+.fv-row-name-group {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
 .fv-row-name {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     min-width: 0;
+}
+
+.fv-row-meta {
+    display: none;
+    font-size: 0.6rem;
+    color: #3a5070;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 1px;
 }
 
 .fv-row-type {
@@ -774,8 +796,30 @@
 }
 
 @media (max-width: 768px) {
-    .fv-top-bar, .fv-breadcrumb { padding: 10px 12px; }
+    .fv-breadcrumb { padding: 10px 12px; }
+
+    /* Top bar: search takes its own row; sort + toggle share the row below at natural widths */
+    .fv-top-bar { flex-wrap: wrap; gap: 8px; padding: 8px 12px; justify-content: space-between; }
+    .fv-search-wrap { flex: 1 1 100%; }
+    .fv-sort-chip { padding: 4px 6px; font-size: 0.6rem; }
+
+    /* Shelf: slightly smaller cards, hide Move button to fit 4 buttons */
     .fv-shelf { padding: 12px; gap: 8px; }
-    .fv-card { width: 90px; padding: 14px 8px 10px; }
-    .fv-row { padding: 9px 12px; }
+    .fv-card { width: 112px; height: 116px; padding: 12px 8px 8px; }
+    .fv-card .fv-act-move { display: none; }
+
+    /* Ledger: drop Type column, reveal inline meta */
+    .fv-ledger-header,
+    .fv-row { grid-template-columns: 24px 1fr 80px 110px; padding: 9px 12px; }
+    .fv-row-type { display: none; }
+    .fv-ledger-header > :nth-child(3) { display: none; }
+    .fv-row-meta { display: block; }
+}
+
+@media (max-width: 480px) {
+    /* Phone: drop Size column too — meta line covers it */
+    .fv-ledger-header,
+    .fv-row { grid-template-columns: 24px 1fr 110px; }
+    .fv-row-size { display: none; }
+    .fv-ledger-header > :nth-child(4) { display: none; }
 }

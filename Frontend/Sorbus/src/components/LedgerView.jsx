@@ -76,19 +76,28 @@ function LedgerView({ sortedEntries, filteredEntries, search, dragOverFolder, op
               <span className={`material-icons fv-row-icon ${isFolder ? '' : 'fv-file-icon'}`}>
                 {isFolder ? 'folder' : getFileIcon(name)}
               </span>
-              {isRenaming ? (
-                <input
-                  autoFocus
-                  className="fv-inline-rename"
-                  value={renameValue}
-                  onChange={e => setRenameValue(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') submitRename(); if (e.key === 'Escape') setRenamingItem(null); }}
-                  onBlur={submitRename}
-                  onClick={e => e.stopPropagation()}
-                />
-              ) : (
-                <span className="fv-row-name">{name}</span>
-              )}
+              <div className="fv-row-name-group">
+                {isRenaming ? (
+                  <input
+                    autoFocus
+                    className="fv-inline-rename"
+                    value={renameValue}
+                    onChange={e => setRenameValue(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') submitRename(); if (e.key === 'Escape') setRenamingItem(null); }}
+                    onBlur={submitRename}
+                    onClick={e => e.stopPropagation()}
+                  />
+                ) : (
+                  <>
+                    <span className="fv-row-name">{name}</span>
+                    <span className="fv-row-meta">
+                      {isFolder ? 'Folder' : (fileInfo[node]?.ext ? fileInfo[node].ext.toUpperCase() : '—')}
+                      {' · '}
+                      {formatSize(getItemSize(name, node))}
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
             <span className="fv-row-type">{isFolder ? 'Folder' : (fileInfo[node]?.ext ? fileInfo[node].ext.toUpperCase() : '—')}</span>
             <span className="fv-row-size">{formatSize(getItemSize(name, node))}</span>

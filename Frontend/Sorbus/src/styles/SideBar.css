@@ -369,6 +369,7 @@
         background: none;
         border: none;
         cursor: pointer;
+        color: white;
     }
 
     .side-bar {
