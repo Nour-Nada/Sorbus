@@ -693,12 +693,16 @@ int main(void)
 
                 nlohmann::json tree = nlohmann::json::object(); //Creates JSON object
                 nlohmann::json file_ids = nlohmann::json::object();
+                nlohmann::json file_info = nlohmann::json::object(); //Secondary metadata per path: size, isFolder, ext, created
 
                 for (const auto& row : result) { //Adds each file or folder by going row by row for each folder that got returned from the above query
                     std::string file_location = row["file_location"].c_str();
                     std::string file_name = row["file_name"].c_str();
-                    std::string type = row["file_extension"].c_str(); // "file" or "folder"
+                    std::string type = row["file_extension"].c_str();
                     int id = row["id"].as<int>();
+                    long long file_size = row["file_size"].as<long long>();
+                    bool is_folder = (type == "folder");
+                    std::string ext = is_folder ? "" : (type.length() > 0 && type[0] == '.' ? type.substr(1) : type);
 
                     nlohmann::json* current = &tree; //Sets current equal to the JSON object
 
@@ -716,19 +720,20 @@ int main(void)
                         current = &(*current)[folder];
                     }
 
-                    //Just assigns the location directly creating the Key Value pair
-                    if (type == "folder") {
+                    //Just assigns the location directly creating the Key Value pair; folders are included in file_ids so the frontend can look up their IDs
+                    std::string full_path = file_location.empty() ? file_name : file_location + "/" + file_name;
+                    file_ids[full_path] = id;
+                    file_info[full_path] = {{"size", file_size}, {"isFolder", is_folder}, {"ext", ext}};
+                    if (is_folder) {
                         (*current)[file_name] = nlohmann::json::object();
                     }
                     else {
-                        std::string full_path = file_location.empty() ? file_name : file_location + "/" + file_name;
                         (*current)[file_name] = full_path;
-                        file_ids[full_path] = id;
                     }
                 }
 
                 res.status = 200;
-                res.set_content(nlohmann::json{{"tree", tree}, {"fileIds", file_ids}}.dump(), "application/json"); //API response
+                res.set_content(nlohmann::json{{"tree", tree}, {"fileIds", file_ids}, {"fileInfo", file_info}}.dump(), "application/json"); //API response
             }
             catch (const std::exception& e) {
                 res.status = 500;
@@ -1347,6 +1352,7 @@ int main(void)
 
                 std::string file_location = result[0]["file_location"].c_str();
                 std::string file_name = result[0]["file_name"].c_str();
+                std::string file_type = result[0]["file_extension"].c_str();
                 int user_id_int = result[0]["user_id"].as<int>();
 
                 auto new_name_it = req.path_params.find("new_name");
@@ -1405,6 +1411,13 @@ int main(void)
                     DB_Open_Connection.exec_params(
                         "UPDATE files SET file_name = $1 WHERE id = $2;",
                         new_name, file_id_int);
+                    if (file_type == "folder") { //Cascade: update file_location for all children when a folder is renamed
+                        std::string old_prefix = file_location.empty() ? file_name : file_location + "/" + file_name;
+                        std::string new_prefix = file_location.empty() ? new_name : file_location + "/" + new_name;
+                        DB_Open_Connection.exec_params(
+                            "UPDATE files SET file_location = $1 || SUBSTRING(file_location, LENGTH($2) + 1) WHERE file_location = $2 OR file_location LIKE $2 || '/%';",
+                            new_prefix, old_prefix);
+                    }
                 }
                 catch (const std::exception& e) {
                     res.status = 500;
@@ -1480,6 +1493,7 @@ int main(void)
             pqxx::result result;
             std::string file_location;
             std::string file_name;
+            std::string file_type;
 
             try {
                 pqxx::result user_check = DB_Open_Connection.exec_params(
@@ -1503,6 +1517,7 @@ int main(void)
 
                 file_location = result[0]["file_location"].c_str();
                 file_name = result[0]["file_name"].c_str();
+                file_type = result[0]["file_extension"].c_str();
             }
             catch (const std::exception& e) {
                 res.status = 500;
@@ -1548,10 +1563,17 @@ int main(void)
             }
 
             try {
-                pqxx::result result = DB_Open_Connection.exec_params(
+                DB_Open_Connection.exec_params(
                     "UPDATE files SET file_location = $1 WHERE id = $2;",
                         new_file_location,
                         file_id_int); //Updates the location of the file in the database
+                if (file_type == "folder") { //Cascade: update file_location for all children when a folder is moved
+                    std::string old_prefix = file_location.empty() ? file_name : file_location + "/" + file_name;
+                    std::string new_prefix = new_file_location.empty() ? file_name : new_file_location + "/" + file_name;
+                    DB_Open_Connection.exec_params(
+                        "UPDATE files SET file_location = $1 || SUBSTRING(file_location, LENGTH($2) + 1) WHERE file_location = $2 OR file_location LIKE $2 || '/%';",
+                        new_prefix, old_prefix);
+                }
             }
             catch (const std::exception& e) {
                 res.status = 500;
@@ -1561,7 +1583,7 @@ int main(void)
             }
 
             try {
-                fs::rename(oldPath, newPath); //moves the file
+                fs::rename(oldPath, newPath); //moves the file or folder (fs::rename handles directories recursively)
             }
             catch (const std::exception& e) {
                 res.status = 500;

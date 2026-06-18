@@ -6,14 +6,13 @@ const AccountContext = createContext();
 export const useAccountContext = () => useContext(AccountContext);
 
 export const AccountProvider = ({children}) => {
-    const [userId, setUserId] = useState(localStorage.getItem('userId') ? parseInt(localStorage.getItem('userId')) : null);
+    const [userId, setUserId] = useState(null);
     const [username, setUsername] = useState(null);
     const [access, setAccess] = useState(null); // "owner" | "editor" | "viewer"
     const [serverPath, setServerPath] = useState(null); // FILE_LOCATION on the C++ server
 
     const updateUserId = (id) => {
-        // Persists userId to localStorage so it survives page refresh
-        localStorage.setItem('userId', id);
+        // Sets userId in state; sourced from the refresh token so localStorage is not needed
         setUserId(id);
     };
 

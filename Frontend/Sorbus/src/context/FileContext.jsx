@@ -11,7 +11,8 @@ export const FileProvider = ({children}) => {
     const { userId } = useAccountContext();
     const { isLoggedIn } = useAuthContext();
     const [tree, setTree] = useState({}); //For the tree of file ids
-    const [fileIds, setFileIds] = useState({}); //For the main file information
+    const [fileIds, setFileIds] = useState({}); //Maps full path → DB id (files and folders)
+    const [fileInfo, setFileInfo] = useState({}); //Maps full path → { size, isFolder, ext, created }
     const [currentPath, setCurrentPath] = useState([]); //For the current path for which the homepage displays
 
     const refreshFiles = useCallback(() => {
@@ -21,6 +22,7 @@ export const FileProvider = ({children}) => {
             .then(res => {
                 setTree(res.data.tree);
                 setFileIds(res.data.fileIds);
+                setFileInfo(res.data.fileInfo ?? {});
             })
             .catch(err => console.error('Failed to fetch files:', err));
     }, [userId, isLoggedIn]);
@@ -30,7 +32,7 @@ export const FileProvider = ({children}) => {
     }, [refreshFiles]);
 
     return (
-        <FileContext.Provider value={{ tree, fileIds, currentPath, setCurrentPath, refreshFiles }}>
+        <FileContext.Provider value={{ tree, fileIds, fileInfo, currentPath, setCurrentPath, refreshFiles }}>
             {children}
         </FileContext.Provider>
     );

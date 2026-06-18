@@ -1,4 +1,5 @@
 import { createContext, useState, useContext, useEffect } from "react";
+import { useAccountContext } from "./AccountContext.jsx";
 import axios from "axios";
 
 const AuthContext = createContext();
@@ -13,6 +14,7 @@ export const setAccessToken = (t) => { _accessToken = t; };
 export const AuthProvider = ({ children }) => {
     const [token, setToken] = useState(null); // Kept for any consumers; synced with _accessToken
     const [isLoggedIn, setIsLoggedIn] = useState(null);
+    const { updateUserId, setUsername, setAccess } = useAccountContext();
 
     useEffect(() => {
         // On mount, restore the session silently via the refresh token cookie instead of reading localStorage
@@ -21,6 +23,9 @@ export const AuthProvider = ({ children }) => {
                 const { data } = await axios.post('/api/user/refresh', {}, { withCredentials: true, _retry: true });
                 setAccessToken(data.jwt_token);
                 setToken(data.jwt_token);
+                updateUserId(data.user_id);
+                setUsername(data.username);
+                setAccess(data.access);
                 setIsLoggedIn(true);
             } catch {
                 setIsLoggedIn(false);
@@ -41,7 +46,9 @@ export const AuthProvider = ({ children }) => {
         setAccessToken(null);
         setToken(null);
         setIsLoggedIn(false);
-        localStorage.removeItem('userId');
+        updateUserId(null);
+        setUsername(null);
+        setAccess(null);
         axios.post('/api/user/logout', {}, { withCredentials: true, _retry: true }).catch(() => {});
     };
 

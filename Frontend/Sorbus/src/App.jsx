@@ -14,9 +14,8 @@ import { getAccessToken, setAccessToken } from './context/AuthContext.jsx'
 import axios from 'axios'
 import './styles/App.css'
 
-const clearSession = (err_code) => { //Clears the in-memory token, removes userId, calls server logout to clear the cookie, then redirects
+const clearSession = (err_code) => { //Clears the in-memory token, calls server logout to clear the cookie, then redirects — userId/username/access reset naturally on remount via restore()
   setAccessToken(null);
-  localStorage.removeItem('userId');
   axios.post('/api/user/logout', {}, { withCredentials: true, _retry: true }).catch(() => {});
   window.location.href = err_code === 401 ? '/unauthorized' : '/login';
 };
@@ -79,8 +78,8 @@ axios.interceptors.response.use( //On 401, silently refreshes the access token a
 
 function App() {
   return (
-    <AuthProvider>
-      <AccountProvider>
+    <AccountProvider>
+      <AuthProvider>
         <FileProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
@@ -95,8 +94,8 @@ function App() {
             </Route>
           </Routes>
         </FileProvider>
-      </AccountProvider>
-    </AuthProvider>
+      </AuthProvider>
+    </AccountProvider>
   )
 }
 

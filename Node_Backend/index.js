@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit'
 import cors from 'cors';
 import jwt from "jsonwebtoken";
 import cookieParser from "cookie-parser";
+import crypto from "crypto";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -51,8 +52,11 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
 const REFRESH_COOKIE_OPTIONS = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'Strict', maxAge: 7 * 24 * 60 * 60 * 1000 };
-const signRefreshToken = (userId) => jwt.sign({ userId }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '7d' }); //Signs a long-lived refresh token
+const signRefreshToken = (userId, username, access) => jwt.sign({ userId, username, access }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '7d' }); //Signs a long-lived refresh token
 
+
+// Short-lived single-use tokens for native browser file downloads (avoids buffering in JS memory)
+const downloadTokens = new Map();
 
 //Important variables
 const API_KEY = process.env.API_KEY;
@@ -73,13 +77,13 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 
 
-app.post("/api/user/refresh", (req, res) => { //Issues a new access token using the refresh token cookie
+app.post("/api/user/refresh", (req, res) => { //Issues a new access token using the refresh token cookie, and returns username and access baked into the refresh token
   const token = req.cookies.refreshToken;
   if (!token) return res.status(401).send("No refresh token.");
   try {
     const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
     const newToken = jwt.sign({ userId: decoded.userId }, process.env.JWT_SECRET, { expiresIn: 300 });
-    res.status(200).json({ jwt_token: newToken });
+    res.status(200).json({ jwt_token: newToken, user_id: decoded.userId, username: decoded.username, access: decoded.access });
   } catch {
     res.clearCookie('refreshToken', REFRESH_COOKIE_OPTIONS);
     res.status(401).send("Invalid refresh token.");
@@ -120,7 +124,7 @@ app.post("/api/user/signup", limiter, async (req, res) => { //The route to signu
     const token = jwt.sign({ userId: response.data.user_id }, process.env.JWT_SECRET, {
       expiresIn: 300
     }); //Signs the response with a JWT token that expires in 1 hour
-    res.cookie('refreshToken', signRefreshToken(response.data.user_id), REFRESH_COOKIE_OPTIONS);
+    res.cookie('refreshToken', signRefreshToken(response.data.user_id, response.data.username, response.data.access), REFRESH_COOKIE_OPTIONS);
     const userInfo = { user_id: response.data.user_id, username: response.data.username, access: response.data.access, jwt_token: token }; //Builds response without exposing the hashed password
     res.status(response.status).json(userInfo); //Sets the status to the status of the response from the C++ server
   } catch (error) {
@@ -149,7 +153,7 @@ app.post("/api/user/login/:username", limiter, async (req, res) => { //The route
     const token = jwt.sign({ userId: response.data.user_id }, process.env.JWT_SECRET, {
       expiresIn: 300
     }); //Signs the response with a JWT token that expires in 1 hour
-    res.cookie('refreshToken', signRefreshToken(response.data.user_id), REFRESH_COOKIE_OPTIONS);
+    res.cookie('refreshToken', signRefreshToken(response.data.user_id, response.data.username, response.data.access), REFRESH_COOKIE_OPTIONS);
     const userInfo = { user_id: response.data.user_id, username: response.data.username, access: response.data.access, jwt_token: token }; //Builds response without exposing the hashed password
     res.status(200).json(userInfo);
   } catch (error) {
@@ -478,6 +482,32 @@ app.patch("/api/features/location/:user_id", verifyJWT, verifyUserId(), limiter,
 });
 
 
+
+app.get("/api/files/download-token/:file_id/:user_id", verifyJWT, verifyUserId(), (req, res) => { //Issues a single-use 60-second download token for a specific file
+  const token = crypto.randomBytes(24).toString('hex');
+  downloadTokens.set(token, { fileId: req.params.file_id, userId: req.params.user_id, expires: Date.now() + 60_000 });
+  res.json({ token });
+});
+
+app.get("/api/files/download-stream/:file_id/:user_id", async (req, res) => { //Streams a file using a signed token — no auth header needed so the browser can download directly
+  const entry = downloadTokens.get(req.query.token);
+  if (!entry || entry.fileId !== req.params.file_id || entry.userId !== req.params.user_id || Date.now() > entry.expires) {
+    return res.status(401).send("Invalid or expired download token.");
+  }
+  downloadTokens.delete(req.query.token);
+  try {
+    const response = await axios.get(`${C_Server_Route}/api/files/download/${req.params.file_id}/${req.params.user_id}`, {
+      headers: { "key": API_KEY },
+      responseType: "stream"
+    });
+    res.status(response.status);
+    response.data.pipe(res);
+  } catch (error) {
+    console.error("Error downloading file:", error);
+    if (error.response) return res.status(error.response.status).send(error.response.data);
+    res.status(500).send("Error downloading file");
+  }
+});
 
 //Fallback route
 app.use((req, res) => { //Catches unkown routes

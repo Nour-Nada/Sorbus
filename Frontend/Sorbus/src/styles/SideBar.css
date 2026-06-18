@@ -83,6 +83,114 @@
     cursor: pointer;
 }
 
+/* Thin opaque scrollbars matching the sidebar dark theme */
+.side-bar::-webkit-scrollbar,
+.side-bar-files::-webkit-scrollbar {
+    width: 4px;
+}
+
+.side-bar::-webkit-scrollbar-track,
+.side-bar-files::-webkit-scrollbar-track {
+    background: #1a2035;
+}
+
+.side-bar::-webkit-scrollbar-thumb,
+.side-bar-files::-webkit-scrollbar-thumb {
+    background: #3a4460;
+    border-radius: 2px;
+}
+
+.side-bar::-webkit-scrollbar-thumb:hover,
+.side-bar-files::-webkit-scrollbar-thumb:hover {
+    background: #4e5e80;
+}
+
+/* File tree nodes */
+.tree-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 8px;
+    border: none;
+    background: none;
+    color: #c8d3e6;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    text-align: left;
+    box-sizing: border-box;
+}
+
+.tree-item:hover {
+    background-color: #252d47;
+}
+
+.tree-arrow {
+    font-size: 16px;
+    color: #8892a4;
+    flex-shrink: 0;
+}
+
+.tree-icon {
+    font-size: 16px;
+    color: #8892a4;
+    flex-shrink: 0;
+}
+
+.tree-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tree-item-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.tree-arrow-btn {
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    color: #8892a4;
+    flex-shrink: 0;
+    border-radius: 4px;
+    font-family: inherit;
+}
+
+.tree-arrow-btn:hover {
+    background: #252d47;
+    color: #c8d3e6;
+}
+
+.tree-name-btn {
+    background: none;
+    border: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    flex: 1;
+    cursor: pointer;
+    color: #c8d3e6;
+    font-size: 0.82rem;
+    text-align: left;
+    border-radius: 6px;
+    overflow: hidden;
+    min-width: 0;
+    font-family: inherit;
+}
+
+.tree-name-btn:hover {
+    background: #252d47;
+}
+
 /* Bottom section */
 .side-bar-bottom {
     width: 100%;
@@ -238,7 +346,20 @@
     color: #2e5fa3;
 }
 
+/* Backdrop overlay — closes sidebar when tapped outside on mobile */
+.sidebar-overlay {
+    display: none;
+}
+
 @media (max-width: 768px) {
+    .sidebar-overlay {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        background: rgba(0, 0, 0, 0.35);
+    }
+
     .hamburger {
         display: block;
         position: fixed;

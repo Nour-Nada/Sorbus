@@ -7,6 +7,7 @@ import { flushSync } from 'react-dom';
 import axios from 'axios';
 import '../styles/SideBar.css';
 import sorbusLogo from '../assets/sorbus_logo.png';
+import FolderTree from './FolderTree.jsx';
 
 function SideBar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -16,7 +17,7 @@ function SideBar() {
   const [storageUsed, setStorageUsed] = useState(null);
 
   const { username, access } = useAccountContext();
-  const { tree, fileIds } = useFileContext();
+  const { tree, setCurrentPath } = useFileContext();
   const { logout } = useAuthContext();
   const navigate = useNavigate();
 
@@ -45,7 +46,6 @@ function SideBar() {
     // Receives dropped files — wire up API call here later
     e.preventDefault();
     setIsDragging(false);
-    // console.log('Dropped files:', e.dataTransfer.files);
   };
 
   const handleFileSelect = (e) => {
@@ -59,13 +59,13 @@ function SideBar() {
     navigate('/login');
   };
 
-  console.log('File IDs:', fileIds);
-
   return (
     <>
       <button className="hamburger" onClick={() => setIsOpen(!isOpen)}>
         <span className="material-icons">{isOpen ? 'close' : 'menu'}</span>
       </button>
+
+      {isOpen && <div className="sidebar-overlay" onClick={() => setIsOpen(false)} />}
 
       <div className={`side-bar ${isOpen ? 'open' : ''}`}>
 
@@ -80,18 +80,11 @@ function SideBar() {
           Upload
         </button>
 
-        {/* Files tree area — populated later from FileContext */}
+        {/* Files tree */}
         <div className="side-bar-files">
           <p className="side-bar-section-label">FILES</p>
           <div className="side-bar-tree">
-            {Object.keys(fileIds).map((fileName, fileId) => {
-              console.log(fileName, fileId);
-              return (
-                <button className="side-bar-file-btn" key={fileId}>
-                  <p>test</p>
-                </button>
-              );
-            })}
+            <FolderTree tree={tree} onSelect={(path) => setCurrentPath(path.split('/'))} />
           </div>
         </div>
 
