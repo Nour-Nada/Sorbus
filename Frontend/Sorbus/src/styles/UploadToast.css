@@ -1,0 +1,78 @@
+/* Floating upload progress toast — bottom-right corner of the app */
+.upload-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 320px;
+    max-width: calc(100vw - 48px);
+    background: #121e33;
+    border: 1px solid #2a3a55;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    color: #e0e6f0;
+    z-index: 400;
+    overflow: hidden;
+    animation: upload-toast-in 0.25s ease;
+}
+
+@keyframes upload-toast-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.upload-toast-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid #2a3a55;
+}
+
+.upload-toast-title {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.upload-toast-close {
+    background: none;
+    border: none;
+    color: #4a6080;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+.upload-toast-close:hover { color: #e0e6f0; }
+.upload-toast-close .material-icons { font-size: 18px; }
+
+.upload-toast-list {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 8px 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.upload-toast-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: #a8b6cc;
+}
+
+.upload-toast-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.upload-toast-status {
+    flex-shrink: 0;
+    color: #2e5fa3;
+}
+
+.upload-toast-item.done .upload-toast-status { color: #4caf50; }
+.upload-toast-item.error .upload-toast-status { color: #e57373; }

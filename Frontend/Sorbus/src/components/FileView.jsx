@@ -22,8 +22,10 @@ function getFileIcon(name) {
 }
 
 function FileView() {
-  const { tree, fileIds, fileInfo, currentPath, setCurrentPath, refreshFiles } = useFileContext();
+  const { tree, fileIds, fileInfo, currentPath, setCurrentPath, refreshFiles, uploadFiles } = useFileContext();
   const { userId } = useAccountContext();
+
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false); //True while external OS files are dragged over the view
 
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState('ledger');
@@ -193,6 +195,22 @@ function FileView() {
     }),
   });
 
+  const handleFileDragOver = (e) => {
+    // Shows the upload overlay only when dragging external OS files (not internal item moves)
+    if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setIsDraggingFiles(true); }
+  };
+
+  const handleFileDragLeave = (e) => {
+    // Hides the overlay only when the cursor actually leaves the view, not when entering a child
+    if (!e.currentTarget.contains(e.relatedTarget)) setIsDraggingFiles(false);
+  };
+
+  const handleFileDrop = (e) => {
+    // Uploads external files dropped anywhere in the view to the current folder
+    if (e.dataTransfer.files.length > 0) { e.preventDefault(); uploadFiles(e.dataTransfer.files); }
+    setIsDraggingFiles(false);
+  };
+
   // Paths of folders being moved — excluded from the tree so you can't move a folder into itself or its descendants
   const moveExcludePaths = moveModal ? new Set(
     moveModal.items
@@ -204,7 +222,21 @@ function FileView() {
   ) : null;
 
   return (
-    <div className="file-view" onClick={() => setContextMenu(null)}>
+    <div
+      className="file-view"
+      onClick={() => setContextMenu(null)}
+      onDragOver={handleFileDragOver}
+      onDragLeave={handleFileDragLeave}
+      onDrop={handleFileDrop}
+    >
+
+      {/* Drag-to-upload overlay */}
+      {isDraggingFiles && (
+        <div className="fv-upload-overlay">
+          <span className="material-icons">cloud_upload</span>
+          <p>Drop files to upload here</p>
+        </div>
+      )}
 
       {/* Breadcrumb */}
       <div className="fv-breadcrumb">

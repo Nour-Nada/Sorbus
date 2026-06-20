@@ -17,9 +17,11 @@ function SideBar() {
   const [storageUsed, setStorageUsed] = useState(null);
 
   const { username, access } = useAccountContext();
-  const { tree, setCurrentPath } = useFileContext();
+  const { tree, setCurrentPath, uploadFiles } = useFileContext();
   const { logout } = useAuthContext();
   const navigate = useNavigate();
+
+  const closeUpload = () => setIsUploadOpen(false); //Closes the upload modal (progress keeps showing in the corner toast)
 
   useEffect(() => {
     // Fetches free disk space and total used file size, re-runs whenever the file tree changes
@@ -43,14 +45,16 @@ function SideBar() {
   const handleDragLeave = () => setIsDragging(false);
 
   const handleDrop = (e) => {
-    // Receives dropped files — wire up API call here later
+    // Uploads the files dropped into the drop zone
     e.preventDefault();
     setIsDragging(false);
+    if (e.dataTransfer.files.length > 0) uploadFiles(e.dataTransfer.files);
   };
 
   const handleFileSelect = (e) => {
-    // Receives files from file picker — wire up API call here later
-    console.log('Selected files:', e.target.files);
+    // Uploads the files chosen from the file picker
+    if (e.target.files.length > 0) uploadFiles(e.target.files);
+    e.target.value = ''; //Reset so picking the same file again still fires onChange
   };
 
   const handleLogout = (e) => {
@@ -121,9 +125,9 @@ function SideBar() {
 
       {/* Upload modal */}
       {isUploadOpen && (
-        <div className="upload-overlay" onClick={() => setIsUploadOpen(false)}>
+        <div className="upload-overlay" onClick={closeUpload}>
           <div className="upload-modal" onClick={(e) => e.stopPropagation()}>
-            <button className="upload-close" onClick={() => setIsUploadOpen(false)}>
+            <button className="upload-close" onClick={closeUpload}>
               <span className="material-icons">close</span>
             </button>
             <div

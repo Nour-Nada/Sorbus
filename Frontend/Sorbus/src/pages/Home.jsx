@@ -1,6 +1,7 @@
 import '../styles/Home.css'
 import SideBar from '../components/SideBar.jsx'
 import FileView from '../components/FileView.jsx'
+import UploadToast from '../components/UploadToast.jsx'
 
 function Home() {
 
@@ -8,6 +9,7 @@ function Home() {
     <div className="home">
       <SideBar />
       <FileView />
+      <UploadToast />
     </div>
   )
 }
