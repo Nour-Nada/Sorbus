@@ -8,6 +8,7 @@ import axios from 'axios';
 import '../styles/SideBar.css';
 import sorbusLogo from '../assets/sorbus_logo.png';
 import FolderTree from './FolderTree.jsx';
+import UserAvatar from './UserAvatar.jsx';
 
 function SideBar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -96,7 +97,7 @@ function SideBar() {
         <div className="side-bar-bottom">
           <div className="side-bar-user-row">
             <div className="side-bar-user" onClick={() => navigate('/account')}>
-              <div className="user-avatar">{username ? username[0].toUpperCase() : '?'}</div>
+              <UserAvatar username={username} />
               <div className="user-info">
                 <p className="user-name">{username || 'Unknown'}</p>
                 <p className="user-role">{access || '—'}</p>
@@ -108,7 +109,9 @@ function SideBar() {
           </div>
 
           <div className="side-bar-storage">
-            <p className="storage-label">{formatBytes(storageUsed)} used · {formatBytes(storageFree)} free</p>
+            <p className="storage-label">
+              {formatBytes(storageUsed)} of {formatBytes(storageFree != null && storageUsed != null ? storageUsed + storageFree : null)} used
+            </p>
             <div className="storage-bar-track">
               <div
                 className="storage-bar-fill"

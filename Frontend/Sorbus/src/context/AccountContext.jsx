@@ -19,7 +19,7 @@ export const AccountProvider = ({children}) => {
     const refreshServerPath = () => {
         // Fetches the current server storage path
         axios.get(`/api/features/location`)
-            .then(res => setServerPath(res.data.location))
+            .then(res => setServerPath(res.data))
             .catch(err => console.error('Failed to fetch server path:', err));
     };
 

@@ -38,9 +38,17 @@
     gap: 2px;
     border-bottom: 1px solid #1e2640;
     flex-shrink: 0;
-    flex-wrap: wrap;
+    overflow-x: auto;
+    white-space: nowrap;
     background: #0e1a28;
+    scrollbar-width: thin;
+    scrollbar-color: #3a4460 #0e1a28;
 }
+
+.fv-breadcrumb::-webkit-scrollbar { height: 3px; }
+.fv-breadcrumb::-webkit-scrollbar-track { background: #0e1a28; }
+.fv-breadcrumb::-webkit-scrollbar-thumb { background: #3a4460; border-radius: 2px; }
+.fv-breadcrumb::-webkit-scrollbar-thumb:hover { background: #4e5e80; }
 
 .fv-crumb-group {
     display: flex;

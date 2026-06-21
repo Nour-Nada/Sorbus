@@ -190,31 +190,37 @@ void reinitialize_files(pqxx::work &db_con, int user_id) { //Reinitializes the f
     fs::path base(get_file_location());
     current_file_count = 0;
 
-    for (auto const& dir_entry : fs::recursive_directory_iterator{ base }) { //The for loop to go through every file in the base file path
+    for (auto const& dir_entry : fs::recursive_directory_iterator{ base, fs::directory_options::skip_permission_denied }) { //The for loop to go through every file in the base file path
         if (current_file_count > MAX_FILES) { //Checks to make sure we have not surpassed the maximum amount of files allowed
             throw std::runtime_error("Hit Maximum File Load Count");
         }
-        std::string file_name;
-        std::string file_location;
-        int file_size = 0;
-        std::string file_extension;
 
-        if (fs::is_directory(dir_entry)) {
-            file_size = -1;
-            file_extension = "folder";
+        try {
+            std::string file_name;
+            std::string file_location;
+            long long file_size = 0;
+            std::string file_extension;
+
+            if (fs::is_directory(dir_entry)) {
+                file_size = -1;
+                file_extension = "folder";
+            }
+            else {
+                file_extension = dir_entry.path().extension().string();
+                file_size = static_cast<long long>(fs::file_size(dir_entry));
+            }
+            file_name = dir_entry.path().filename().string();
+            file_location = fs::relative(dir_entry.path(), base).parent_path().generic_string();
+
+            db_con.exec_params(
+                "INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES ($1, $2, $3, $4, $5);",
+                user_id, file_name, file_location, file_size, file_extension); //inserts the file into the database
+
+            ++current_file_count;
         }
-        else {
-            file_extension = dir_entry.path().extension().string();
-            file_size = fs::file_size(dir_entry);
+        catch (const std::exception& e) {
+            std::cout << "Skipping file (inaccessible): " << dir_entry.path().string() << " - " << e.what() << std::endl;
         }
-        file_name = dir_entry.path().filename().string();
-        file_location = fs::relative(dir_entry.path(), base).parent_path().generic_string();
-
-        db_con.exec_params(
-            "INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES ($1, $2, $3, $4, $5);",
-            user_id, file_name, file_location, file_size, file_extension); //inserts the file into the database
-
-        ++current_file_count;
     }
 
     return;
@@ -449,16 +455,20 @@ int main(void)
             pqxx::nontransaction DB_Open_Connection{ DB_Connection };
             try {
                 pqxx::result result = DB_Open_Connection.exec(
-                    pqxx::zview("SELECT * from users;") //Selects all the files for this user
+                    pqxx::zview("SELECT * from users;") //Selects all the users
                 );
 
                 nlohmann::json tree = nlohmann::json::object(); //Creates JSON object
 
-                for (const auto& row : result) { //Adds each file or folder by going row by row for each folder that got returned from the above query
+                for (const auto& row : result) { //Adds each user
                     std::string username = row["username"].c_str();
                     int id = row["id"].as<int>();
+                    std::string email = row["email"].c_str();
 
-                    tree[username] = id;
+                    nlohmann::json userObj;
+                    userObj["id"] = id;
+                    userObj["email"] = email;
+                    tree[username] = userObj;
                 }
 
                 res.status = 200;
@@ -977,7 +987,7 @@ int main(void)
                 );
 
                 res.status = 200;
-                res.set_content(std::to_string(result[0][0].as<long int>()), "text/plain"); //API response
+                res.set_content(std::to_string(result[0][0].as<long long>()), "text/plain"); //API response
             }
             catch (const std::exception& e) {
                 res.status = 500;
