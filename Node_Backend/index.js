@@ -21,6 +21,14 @@ const limiter = rateLimit({ //The variable to set the rate limits
 	ipv6Subnet: 56, // Set to 60 or 64 to be less aggressive, or 52 or 48 to be more aggressive
 });
 
+const downloadLimiter = rateLimit({ //Tighter limit for the public download-stream endpoint (no JWT protection, token is the only gate)
+	windowMs: 5 * 60 * 1000,
+	limit: 60,
+	standardHeaders: 'draft-8',
+	legacyHeaders: false,
+	ipv6Subnet: 56,
+});
+
 const verifyJWT = (req, res, next) => { //The function to verify the JWT token for protected routes
   const token = req.headers['authorization']?.split(' ')[1]; //Gets the token from the header
   if (!token) {
@@ -77,7 +85,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 
 
-app.post("/api/user/refresh", (req, res) => { //Issues a new access token using the refresh token cookie, and returns username and access baked into the refresh token
+app.post("/api/user/refresh", limiter, (req, res) => { //Issues a new access token using the refresh token cookie, and returns username and access baked into the refresh token
   const token = req.cookies.refreshToken;
   if (!token) return res.status(401).send("No refresh token.");
   try {
@@ -90,12 +98,12 @@ app.post("/api/user/refresh", (req, res) => { //Issues a new access token using 
   }
 });
 
-app.post("/api/user/logout", (req, res) => { //Clears the refresh token cookie server-side
+app.post("/api/user/logout", limiter, (req, res) => { //Clears the refresh token cookie server-side
   res.clearCookie('refreshToken', REFRESH_COOKIE_OPTIONS);
   res.status(200).send("Logged out.");
 });
 
-app.get("/api/user/verify", verifyJWT, (req, res) => { //a route to validate the validity of the JWT from the frontend
+app.get("/api/user/verify", limiter, verifyJWT, (req, res) => { //a route to validate the validity of the JWT from the frontend
   res.status(200).send("OK");
 });
 
@@ -165,7 +173,7 @@ app.post("/api/user/login/:username", limiter, async (req, res) => { //The route
   }
 });
 
-app.get("/api/user/name", verifyJWT, async (req, res) => { //The route to get all usernames
+app.get("/api/user/name", limiter, verifyJWT, async (req, res) => { //The route to get all usernames
   try {
     const response = await axios.get(`${C_Server_Route}/api/user/name`, {
       headers: {
@@ -182,7 +190,7 @@ app.get("/api/user/name", verifyJWT, async (req, res) => { //The route to get al
   }
 });
 
-app.patch("/api/user/change/access/:user_id_main/:user_id_change/:access", verifyJWT, verifyUserId('user_id_main'), async (req, res) => { //The route to change a user's access level
+app.patch("/api/user/change/access/:user_id_main/:user_id_change/:access", limiter, verifyJWT, verifyUserId('user_id_main'), async (req, res) => { //The route to change a user's access level
   try {
     const { user_id_main, user_id_change, access } = req.params;
     const response = await axios.patch(`${C_Server_Route}/api/user/change/access/${user_id_main}/${user_id_change}/${access}`, {
@@ -200,7 +208,7 @@ app.patch("/api/user/change/access/:user_id_main/:user_id_change/:access", verif
   }
 });
 
-app.delete("/api/user/delete/:user_id_main/:user_id_change", verifyJWT, verifyUserId('user_id_main'), async (req, res) => { //The route to delete a user
+app.delete("/api/user/delete/:user_id_main/:user_id_change", limiter, verifyJWT, verifyUserId('user_id_main'), async (req, res) => { //The route to delete a user
   try {
     const { user_id_main, user_id_change } = req.params;
     const response = await axios.delete(`${C_Server_Route}/api/user/delete/${user_id_main}/${user_id_change}`, {
@@ -226,11 +234,11 @@ app.delete("/api/user/delete/:user_id_main/:user_id_change", verifyJWT, verifyUs
 
 //Get Routes
 
-app.get("/", async (req, res) => { //The base route
+app.get("/", limiter, async (req, res) => { //The base route
   res.send('API is running (This is the API for the local file upload app');
 });
 
-app.get("/api/files/name/:user_id", verifyJWT, verifyUserId(), async (req, res) => { //The route to get the file tree for a user
+app.get("/api/files/name/:user_id", limiter, verifyJWT, verifyUserId(), async (req, res) => { //The route to get the file tree for a user
   const {user_id} = req.params;
   try {
     const response = await axios.get(`${C_Server_Route}/api/files/name/${user_id}`, {
@@ -248,7 +256,7 @@ app.get("/api/files/name/:user_id", verifyJWT, verifyUserId(), async (req, res) 
   }
 });
 
-app.get("/api/files/download/:file_id/:user_id", verifyJWT, verifyUserId(), async (req, res) => { //The route to get the file to download
+app.get("/api/files/download/:file_id/:user_id", limiter, verifyJWT, verifyUserId(), async (req, res) => { //The route to get the file to download
   try {
     const {file_id, user_id} = req.params;
     const response = await axios.get(`${C_Server_Route}/api/files/download/${file_id}/${user_id}`, {
@@ -268,7 +276,7 @@ app.get("/api/files/download/:file_id/:user_id", verifyJWT, verifyUserId(), asyn
   }
 });
 
-app.get("/api/files/storage", verifyJWT, async (req, res) => { //The route to get the storage left on the disk
+app.get("/api/files/storage", limiter, verifyJWT, async (req, res) => { //The route to get the storage left on the disk
   try {
     const response = await axios.get(`${C_Server_Route}/api/files/storage`, {
       headers: {
@@ -285,7 +293,7 @@ app.get("/api/files/storage", verifyJWT, async (req, res) => { //The route to ge
   }
 });
 
-app.get("/api/files/filesizes", verifyJWT, async (req, res) => { //The route to get the sizes of the files in the current location
+app.get("/api/files/filesizes", limiter, verifyJWT, async (req, res) => { //The route to get the sizes of the files in the current location
   try {
     const response = await axios.get(`${C_Server_Route}/api/files/filesizes`, {
       headers: {
@@ -305,7 +313,7 @@ app.get("/api/files/filesizes", verifyJWT, async (req, res) => { //The route to 
 
 //Post Routes
 
-app.post("/api/files/upload/:user_id", verifyJWT, verifyUserId(), async (req, res) => { //Uploads the given file from the frontend to the C++ server
+app.post("/api/files/upload/:user_id", limiter, verifyJWT, verifyUserId(), async (req, res) => { //Uploads the given file from the frontend to the C++ server
   try {
     const { user_id } = req.params;
 
@@ -338,7 +346,7 @@ app.post("/api/files/upload/:user_id", verifyJWT, verifyUserId(), async (req, re
   }
 });
 
-app.post("/api/files/create/:user_id", verifyJWT, verifyUserId(), async (req, res) => { //Creates a new file with the given name and location
+app.post("/api/files/create/:user_id", limiter, verifyJWT, verifyUserId(), async (req, res) => { //Creates a new file with the given name and location
   try {
     const { user_id } = req.params;
     const response = await axios({
@@ -362,7 +370,7 @@ app.post("/api/files/create/:user_id", verifyJWT, verifyUserId(), async (req, re
 
 //Patch Routes
 
-app.patch("/api/files/name/:file_id/:user_id", verifyJWT, verifyUserId(), async (req, res) => { //The route to change the name of a file
+app.patch("/api/files/name/:file_id/:user_id", limiter, verifyJWT, verifyUserId(), async (req, res) => { //The route to change the name of a file
   try {
     const { file_id, user_id } = req.params;
     const response = await axios({
@@ -381,7 +389,7 @@ app.patch("/api/files/name/:file_id/:user_id", verifyJWT, verifyUserId(), async 
   }
 });
 
-app.patch("/api/files/move/:file_id/:user_id", verifyJWT, verifyUserId(), async (req, res) => { //The route to change the location of a file
+app.patch("/api/files/move/:file_id/:user_id", limiter, verifyJWT, verifyUserId(), async (req, res) => { //The route to change the location of a file
   try {
     const { file_id, user_id } = req.params;
     const response = await axios({
@@ -403,7 +411,7 @@ app.patch("/api/files/move/:file_id/:user_id", verifyJWT, verifyUserId(), async 
 
 //Delete Routes
 
-app.delete("/api/files/delete/:file_id/:user_id", verifyJWT, verifyUserId(), async (req, res) => { //The route to delete a file
+app.delete("/api/files/delete/:file_id/:user_id", limiter, verifyJWT, verifyUserId(), async (req, res) => { //The route to delete a file
   try {
     const { file_id, user_id } = req.params;
     const response = await axios({
@@ -427,7 +435,7 @@ app.delete("/api/files/delete/:file_id/:user_id", verifyJWT, verifyUserId(), asy
 
 
 
-app.get("/api/features/location", verifyJWT, async (req, res) => { //Returns the current absolute file path
+app.get("/api/features/location", limiter, verifyJWT, async (req, res) => { //Returns the current absolute file path
   try {
     const response = await axios({
       method: "GET",
@@ -483,13 +491,13 @@ app.patch("/api/features/location/:user_id", verifyJWT, verifyUserId(), limiter,
 
 
 
-app.get("/api/files/download-token/:file_id/:user_id", verifyJWT, verifyUserId(), (req, res) => { //Issues a single-use 60-second download token for a specific file
+app.get("/api/files/download-token/:file_id/:user_id", limiter, verifyJWT, verifyUserId(), (req, res) => { //Issues a single-use 60-second download token for a specific file
   const token = crypto.randomBytes(24).toString('hex');
   downloadTokens.set(token, { fileId: req.params.file_id, userId: req.params.user_id, expires: Date.now() + 60_000 });
   res.json({ token });
 });
 
-app.get("/api/files/download-stream/:file_id/:user_id", async (req, res) => { //Streams a file using a signed token — no auth header needed so the browser can download directly
+app.get("/api/files/download-stream/:file_id/:user_id", downloadLimiter, async (req, res) => { //Streams a file using a signed token — no auth header needed so the browser can download directly
   const entry = downloadTokens.get(req.query.token);
   if (!entry || entry.fileId !== req.params.file_id || entry.userId !== req.params.user_id || Date.now() > entry.expires) {
     return res.status(401).send("Invalid or expired download token.");

@@ -37,6 +37,8 @@ function FileView() {
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [batchDeleteModal, setBatchDeleteModal] = useState(false);
   const [moveModal, setMoveModal] = useState(null); // { items: [{name, node, isFolder}] }
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
 
   const getCurrentDir = () => {
     // Walks the tree along currentPath to return the active folder's contents
@@ -118,6 +120,20 @@ function FileView() {
   };
 
   const startMove = (items) => setMoveModal({ items });
+
+  const handleCreateFolder = async (name) => {
+    // Calls the create API if a name was given; silently cancels on empty input
+    setCreatingFolder(false);
+    setNewFolderName('');
+    if (!name.trim()) return;
+    try {
+      await axios.post(`/api/files/create/${userId}`, {
+        new_name: name.trim(),
+        folder_path: currentPath.join('/'),
+      });
+      refreshFiles();
+    } catch (err) { console.error('Failed to create folder:', err); }
+  };
 
   const handleMoveSubmit = async (newParent) => {
     // Moves all modal items to newParent concurrently then refreshes
@@ -298,6 +314,13 @@ function FileView() {
             <span className="material-icons">view_list</span>
           </button>
         </div>
+        <button
+          className="fv-new-folder-btn"
+          title="New folder"
+          onClick={() => { setCreatingFolder(true); setNewFolderName(''); }}
+        >
+          <span className="material-icons">create_new_folder</span>
+        </button>
       </div>
 
       {/* Selection bar — visible when one or more items are selected */}
@@ -331,6 +354,10 @@ function FileView() {
           selectedItems={selectedItems}
           toggleSelect={toggleSelect}
           onMoveStart={startMove}
+          creatingFolder={creatingFolder}
+          newFolderName={newFolderName}
+          setNewFolderName={setNewFolderName}
+          onCreateFolder={handleCreateFolder}
         />
       ) : (
         <LedgerView
@@ -348,6 +375,10 @@ function FileView() {
           selectedItems={selectedItems}
           toggleSelect={toggleSelect}
           onMoveStart={startMove}
+          creatingFolder={creatingFolder}
+          newFolderName={newFolderName}
+          setNewFolderName={setNewFolderName}
+          onCreateFolder={handleCreateFolder}
         />
       )}
 

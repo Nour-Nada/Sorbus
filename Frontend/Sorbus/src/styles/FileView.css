@@ -198,6 +198,27 @@
     color: #7eb3ff;
 }
 
+.fv-new-folder-btn {
+    background: none;
+    border: 1px solid #2e5fa3;
+    border-radius: 6px;
+    color: #5a9af0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 7px;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+}
+
+.fv-new-folder-btn:hover {
+    background: #1a3a6a;
+    color: #7eb3ff;
+}
+
+.fv-new-folder-btn .material-icons { font-size: 18px; }
+
 /* ── Shelf view ── */
 .fv-shelf {
     flex: 1;

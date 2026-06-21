@@ -11,7 +11,7 @@ function formatSize(bytes) {
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }
 
-function LedgerView({ sortedEntries, filteredEntries, search, dragOverFolder, openFolder, openContextMenu, dragProps, sortField, sortDir, handleSort, getFileIcon, selectedItems, toggleSelect, onMoveStart }) {
+function LedgerView({ sortedEntries, filteredEntries, search, dragOverFolder, openFolder, openContextMenu, dragProps, sortField, sortDir, handleSort, getFileIcon, selectedItems, toggleSelect, onMoveStart, creatingFolder, newFolderName, setNewFolderName, onCreateFolder }) {
   // Table-style list view with sortable columns for name, type, and size
   const { fileInfo, currentPath } = useFileContext();
   const [renamingItem, setRenamingItem] = useState(null); // { name, onSubmit }
@@ -53,6 +53,27 @@ function LedgerView({ sortedEntries, filteredEntries, search, dragOverFolder, op
         </button>
         <span />
       </div>
+      {creatingFolder && (
+        <div className="fv-row fv-folder-row">
+          <span />
+          <div className="fv-row-name-cell">
+            <span className="material-icons fv-row-icon">folder</span>
+            <div className="fv-row-name-group">
+              <input
+                autoFocus
+                className="fv-inline-rename"
+                placeholder="Folder name"
+                value={newFolderName}
+                onChange={e => setNewFolderName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') onCreateFolder(newFolderName); if (e.key === 'Escape') onCreateFolder(''); }}
+                onBlur={() => onCreateFolder(newFolderName)}
+                onClick={e => e.stopPropagation()}
+              />
+            </div>
+          </div>
+          <span /><span /><span />
+        </div>
+      )}
       {sortedEntries.map(([name, node]) => {
         const isFolder = node !== null && typeof node === 'object';
         const isSelected = selectedItems.has(name);

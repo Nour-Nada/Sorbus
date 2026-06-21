@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import FileItemActions from './FileItemActions.jsx';
 
-function ShelfView({ sortedEntries, filteredEntries, search, dragOverFolder, openFolder, openContextMenu, dragProps, getFileIcon, selectedItems, toggleSelect, onMoveStart }) {
+function ShelfView({ sortedEntries, filteredEntries, search, dragOverFolder, openFolder, openContextMenu, dragProps, getFileIcon, selectedItems, toggleSelect, onMoveStart, creatingFolder, newFolderName, setNewFolderName, onCreateFolder }) {
   // Grid of file/folder cards for the shelf view
   const [renamingItem, setRenamingItem] = useState(null); // { name, onSubmit }
   const [renameValue, setRenameValue] = useState('');
@@ -20,6 +20,21 @@ function ShelfView({ sortedEntries, filteredEntries, search, dragOverFolder, ope
 
   return (
     <div className="fv-shelf">
+      {creatingFolder && (
+        <div className="fv-card fv-folder-card">
+          <span className="material-icons fv-card-icon">folder</span>
+          <input
+            autoFocus
+            className="fv-inline-rename"
+            placeholder="Folder name"
+            value={newFolderName}
+            onChange={e => setNewFolderName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') onCreateFolder(newFolderName); if (e.key === 'Escape') onCreateFolder(''); }}
+            onBlur={() => onCreateFolder(newFolderName)}
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
       {sortedEntries.map(([name, node]) => {
         const isFolder = node !== null && typeof node === 'object';
         const isSelected = selectedItems.has(name);
