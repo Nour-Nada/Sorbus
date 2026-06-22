@@ -483,10 +483,12 @@ int main(void)
                     std::string uname = result.getColumn("username").getText();
                     int id = result.getColumn("id").getInt();
                     std::string email = result.getColumn("email").getText();
+                    std::string access = result.getColumn("access").getText();
 
                     nlohmann::json userObj;
                     userObj["id"] = id;
                     userObj["email"] = email;
+                    userObj["access"] = access;
                     tree[uname] = userObj;
                 }
 

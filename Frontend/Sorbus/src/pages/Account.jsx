@@ -36,9 +36,12 @@ function Account() {
       axios.get('/api/features/location'),
     ]).then(([, usersRes, freeRes, usedRes, locationRes]) => {
       const entries = Object.entries(usersRes.data)
-        .map(([name, val]) => ({ name, id: val.id, email: val.email }))
+        .map(([name, val]) => ({ name, id: val.id, email: val.email, access: val.access }))
         .sort((a, b) => (a.id === userId ? -1 : b.id === userId ? 1 : 0));
       setUsers(entries);
+      const initialAccess = {};
+      entries.forEach(e => { initialAccess[e.id] = e.access; });
+      setLocalAccess(initialAccess);
       setStorageFree(freeRes.data);
       setStorageUsed(usedRes.data);
       setSavedPath(locationRes.data || '');
