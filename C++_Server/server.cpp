@@ -13,7 +13,7 @@
 #include <cstdlib>
 
 //Download System Headers
-#include <pqxx/pqxx>
+#include "header_libs/SQLiteCpp/SQLiteCpp.h"
 
 //Downloaded one file headers
 #include "header_libs/httplib.h"
@@ -60,12 +60,17 @@ const int MAX_FILES = []() { //Maximum number of files allowed in the storage lo
     return (value && *value) ? std::stoi(value) : 100000;
 }(); //The maximum number of files allowed in the storage location
 
-//Database Connection Information
-const std::string DB_CONNECTION_STRING = []() {
-    const char* value = std::getenv("FILEAPP_DB_CONNECTION");
-    return (value && *value) ? std::string(value)
-        : "dbname=sorbus user=postgres password=REDACTED host=localhost";
+//Database File Path
+const std::string DB_FILE_PATH = []() {
+    const char* value = std::getenv("FILEAPP_DB_PATH");
+    return (value && *value) ? std::string(value) : "sorbus.db";
 }();
+
+SQLite::Database openDB() { //Opens the database with a 5s busy timeout to handle concurrent requests
+    SQLite::Database db(DB_FILE_PATH, SQLite::OPEN_READWRITE);
+    db.setBusyTimeout(5000);
+    return db;
+}
 
 
 std::atomic<int> api_traffic_count{ 0 }; //Counts how many API calls are made to valid endpoints while the server is still open
@@ -73,11 +78,10 @@ std::atomic<int> current_file_count{ 0 }; //Tracks the current number of non-fol
 
 void initialize_file_location() { //Loads the file storage location from the database on startup, overriding the env/hardcoded default
     try {
-        pqxx::connection conn(DB_CONNECTION_STRING);
-        pqxx::nontransaction txn(conn);
-        pqxx::result result = txn.exec("SELECT file_location FROM server_info WHERE id = 1;");
-        if (!result.empty() && !result[0][0].is_null()) {
-            std::string db_location = result[0][0].as<std::string>();
+        SQLite::Database db = openDB();
+        SQLite::Statement stmt(db, "SELECT file_location FROM server_info WHERE id = 1");
+        if (stmt.executeStep() && !stmt.isColumnNull(0)) {
+            std::string db_location = stmt.getColumn(0).getText();
             if (!db_location.empty()) {
                 set_file_location(db_location);
             }
@@ -89,14 +93,51 @@ void initialize_file_location() { //Loads the file storage location from the dat
 
 void initialize_file_count() { //Sets current_file_count to the number of files in the database excluding folders
     try {
-        pqxx::connection conn(DB_CONNECTION_STRING);
-        pqxx::work txn(conn);
-        pqxx::result result = txn.exec("SELECT COUNT(*) FROM files WHERE file_extension != 'folder';");
-        current_file_count.store(result[0][0].as<int>(), std::memory_order_relaxed);
-        txn.commit();
+        SQLite::Database db = openDB();
+        SQLite::Statement stmt(db, "SELECT COUNT(*) FROM files WHERE file_extension != 'folder'");
+        if (stmt.executeStep()) {
+            current_file_count.store(stmt.getColumn(0).getInt(), std::memory_order_relaxed);
+        }
     } catch (const std::exception& e) {
         std::cerr << "Failed to initialize file count: " << e.what() << std::endl;
     }
+}
+
+void initialize_schema() { //Creates SQLite tables and seeds server_info on first run
+    SQLite::Database db(DB_FILE_PATH, SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE);
+    db.exec("PRAGMA journal_mode=WAL");
+    db.exec("PRAGMA foreign_keys=ON");
+    db.exec(
+        "CREATE TABLE IF NOT EXISTS users ("
+        "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "  username TEXT NOT NULL UNIQUE,"
+        "  email TEXT NOT NULL UNIQUE,"
+        "  password TEXT NOT NULL,"
+        "  access TEXT NOT NULL DEFAULT 'viewer',"
+        "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        ")"
+    );
+    db.exec(
+        "CREATE TABLE IF NOT EXISTS files ("
+        "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "  user_id INTEGER NOT NULL,"
+        "  file_name TEXT NOT NULL,"
+        "  file_location TEXT NOT NULL,"
+        "  file_size INTEGER NOT NULL,"
+        "  file_extension TEXT,"
+        "  uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+        "  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE"
+        ")"
+    );
+    db.exec(
+        "CREATE TABLE IF NOT EXISTS server_info ("
+        "  id INTEGER PRIMARY KEY CHECK(id = 1),"
+        "  server_status INTEGER NOT NULL DEFAULT 0,"
+        "  register_key TEXT NOT NULL,"
+        "  file_location TEXT NOT NULL DEFAULT ''"
+        ")"
+    );
+    db.exec("INSERT OR IGNORE INTO server_info (id, server_status, register_key, file_location) VALUES (1, 0, 'changeme', '')");
 }
 
 //Global String Errors
@@ -119,7 +160,7 @@ const std::string MISSING_BODY_PARAM = "The Information Sent is Missing Somethin
 const std::string ACCESS_DENIED = "Access Denied: Insufficient Permissions;";
 
 //Global String Success
-const std::string GOOD_DB_CONNECTION = "Connected to PostgreSQL Server; API Path ";
+const std::string GOOD_DB_CONNECTION = "Connected to SQLite Database; API Path ";
 
 //Global helper functions
 #define LOG_TIME() std::cout << std::endl << "[" << get_time_stamp() << "] " << std::endl; // Logs the time the API was called
@@ -183,12 +224,14 @@ std::string get_time_stamp() { //Gets timestamp in format YYYY-MM-DD HH:MM:SS
     return oss.str();
 }
 
-void reinitialize_files(pqxx::work &db_con, int user_id) { //Reinitializes the files in the database to match the local files
+void reinitialize_files(SQLite::Database &db, int user_id) { //Reinitializes the files in the database to match the local files
 
-    db_con.exec("TRUNCATE files");
+    db.exec("DELETE FROM files");
 
     fs::path base(get_file_location());
     current_file_count = 0;
+
+    SQLite::Statement insert(db, "INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES (?, ?, ?, ?, ?)");
 
     for (auto const& dir_entry : fs::recursive_directory_iterator{ base, fs::directory_options::skip_permission_denied }) { //The for loop to go through every file in the base file path
         if (current_file_count > MAX_FILES) { //Checks to make sure we have not surpassed the maximum amount of files allowed
@@ -212,9 +255,13 @@ void reinitialize_files(pqxx::work &db_con, int user_id) { //Reinitializes the f
             file_name = dir_entry.path().filename().string();
             file_location = fs::relative(dir_entry.path(), base).parent_path().generic_string();
 
-            db_con.exec_params(
-                "INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES ($1, $2, $3, $4, $5);",
-                user_id, file_name, file_location, file_size, file_extension); //inserts the file into the database
+            insert.bind(1, user_id);
+            insert.bind(2, file_name);
+            insert.bind(3, file_location);
+            insert.bind(4, file_size);
+            insert.bind(5, file_extension);
+            insert.exec();
+            insert.reset(); //Reset so the statement can be reused for the next file
 
             ++current_file_count;
         }
@@ -222,8 +269,6 @@ void reinitialize_files(pqxx::work &db_con, int user_id) { //Reinitializes the f
             std::cout << "Skipping file (inaccessible): " << dir_entry.path().string() << " - " << e.what() << std::endl;
         }
     }
-
-    return;
 }
 
 
@@ -231,6 +276,7 @@ void reinitialize_files(pqxx::work &db_con, int user_id) { //Reinitializes the f
 int main(void)
 {
 
+    initialize_schema();       //Creates SQLite tables on first run, safe to call every startup
     initialize_file_location(); //Loads the file storage location from the database before accepting requests
     initialize_file_count(); //Loads the current file count from the database before the server starts accepting requests
 
@@ -326,34 +372,24 @@ int main(void)
             std::string password = body["password"].get<std::string>();
             std::string reg_key = body["reg_key"].get<std::string>();
 
-            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-            if (!DB_Connection.is_open()) {
-                res.status = 502;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
-                return;
-            }
-            else {
-                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-            }
-
-            pqxx::work DB_Open_Connection{ DB_Connection };
             try {
-                pqxx::result key_check = DB_Open_Connection.exec(
-                    "SELECT register_key FROM server_info"
-                );
+                SQLite::Database DB_Connection = openDB();
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+                SQLite::Transaction DB_Open_Connection(DB_Connection);
 
-                if (key_check[0][0].as<std::string>() != reg_key) {
+                SQLite::Statement key_check(DB_Connection, "SELECT register_key FROM server_info WHERE id = 1");
+                key_check.executeStep();
+                if (std::string(key_check.getColumn(0).getText()) != reg_key) {
                     res.status = 401;
                     std::cout << "The Registration Key is Incorrect;" << API_PATH << std::endl;
                     res.set_content("Registration key is incorrect", "text/plain");
                     return;
                 }
 
-                pqxx::result dupResult = DB_Open_Connection.exec_params(
-                    "SELECT 1 FROM users WHERE username = $1 OR email = $2 LIMIT 1;",
-                    username, email); //Checks if a user with the same username or email already exists
-                if (!dupResult.empty()) {
+                SQLite::Statement dupCheck(DB_Connection, "SELECT 1 FROM users WHERE username = ? OR email = ? LIMIT 1");
+                dupCheck.bind(1, username);
+                dupCheck.bind(2, email);
+                if (dupCheck.executeStep()) { //Checks if a user with the same username or email already exists
                     res.status = 409;
                     std::cout << DUPLICATE_USER << API_PATH << std::endl;
                     res.set_content(DUPLICATE_USER, "text/plain");
@@ -361,22 +397,25 @@ int main(void)
                     return;
                 }
 
-                pqxx::result is_empty = DB_Open_Connection.exec("SELECT 1 FROM users LIMIT 1;"); //Checks if this is the first user
+                SQLite::Statement emptyCheck(DB_Connection, "SELECT 1 FROM users LIMIT 1");
+                std::string access = emptyCheck.executeStep() ? "viewer" : "owner"; //First user becomes owner, all subsequent users are viewers
 
-                std::string access = is_empty.empty() ? "owner" : "viewer"; //First user becomes owner, all subsequent users are viewers
+                SQLite::Statement insertUser(DB_Connection, "INSERT INTO users (username, email, password, access) VALUES (?, ?, ?, ?)");
+                insertUser.bind(1, username);
+                insertUser.bind(2, email);
+                insertUser.bind(3, password);
+                insertUser.bind(4, access);
+                insertUser.exec();
 
-                DB_Open_Connection.exec_params(
-                    "INSERT INTO users (username, email, password, access) VALUES ($1, $2, $3, $4);",
-                    username, email, password, access);
+                SQLite::Statement result(DB_Connection, "SELECT * FROM users WHERE username = ? OR email = ?");
+                result.bind(1, username);
+                result.bind(2, email);
+                result.executeStep();
 
                 nlohmann::json response;
-                pqxx::result result = DB_Open_Connection.exec_params(
-                    "SELECT * FROM users WHERE username = $1 OR email = $2", username, email
-                );
-
-                response["user_id"] = result[0]["id"].as<int>();
-                response["username"] = result[0]["username"].c_str();
-                response["access"] = result[0]["access"].c_str();
+                response["user_id"] = result.getColumn("id").getInt();
+                response["username"] = result.getColumn("username").getText();
+                response["access"] = result.getColumn("access").getText();
 
                 DB_Open_Connection.commit();
 
@@ -398,33 +437,25 @@ int main(void)
             std::string API_PATH = "GET: /api/login";
             std::string username = req.path_params.at("username");
 
-            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-            if (!DB_Connection.is_open()) {
-                res.status = 502;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
-                return;
-            }
-            else {
-                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-            }
             nlohmann::json response;
-            pqxx::nontransaction DB_Open_Connection{ DB_Connection };
             try {
-                pqxx::result result = DB_Open_Connection.exec_params(
-                    "SELECT * FROM users WHERE username = $1 OR email = $2", username, username
-                );
+                SQLite::Database DB_Connection = openDB();
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
 
-                if (result.empty()) {
+                SQLite::Statement result(DB_Connection, "SELECT * FROM users WHERE username = ? OR email = ?");
+                result.bind(1, username);
+                result.bind(2, username);
+
+                if (!result.executeStep()) {
                     res.status = 401;
                     res.set_content("User Does Not Exist", "text/plain"); //API response
                     return;
                 }
 
-                response["user_id"] = result[0]["id"].as<int>();
-                response["username"] = result[0]["username"].c_str();
-                response["access"] = result[0]["access"].c_str();
-                response["password"] = result[0]["password"].c_str();
+                response["user_id"] = result.getColumn("id").getInt();
+                response["username"] = result.getColumn("username").getText();
+                response["access"] = result.getColumn("access").getText();
+                response["password"] = result.getColumn("password").getText();
                 res.status = 200;
                 res.set_content(response.dump(), "application/json"); //API response
             }
@@ -441,34 +472,22 @@ int main(void)
             LOG_CALL();
             std::string API_PATH = "GET: /api/user/name"; //Path in variable for error messages
 
-            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-            if (!DB_Connection.is_open()) {
-                res.status = 502;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
-                return;
-            }
-            else {
-                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-            }
-
-            pqxx::nontransaction DB_Open_Connection{ DB_Connection };
             try {
-                pqxx::result result = DB_Open_Connection.exec(
-                    pqxx::zview("SELECT * from users;") //Selects all the users
-                );
+                SQLite::Database DB_Connection = openDB();
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
 
+                SQLite::Statement result(DB_Connection, "SELECT * FROM users");
                 nlohmann::json tree = nlohmann::json::object(); //Creates JSON object
 
-                for (const auto& row : result) { //Adds each user
-                    std::string username = row["username"].c_str();
-                    int id = row["id"].as<int>();
-                    std::string email = row["email"].c_str();
+                while (result.executeStep()) { //Adds each user
+                    std::string uname = result.getColumn("username").getText();
+                    int id = result.getColumn("id").getInt();
+                    std::string email = result.getColumn("email").getText();
 
                     nlohmann::json userObj;
                     userObj["id"] = id;
                     userObj["email"] = email;
-                    tree[username] = userObj;
+                    tree[uname] = userObj;
                 }
 
                 res.status = 200;
@@ -525,41 +544,30 @@ int main(void)
                 return;
             }
 
-            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-            if (!DB_Connection.is_open()) {
-                res.status = 502;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
-                return;
-            }
-            else {
-                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-            }
-
-            pqxx::work DB_Open_Connection{ DB_Connection };
             try {
-                pqxx::result user_check = DB_Open_Connection.exec_params(
-                    "SELECT * FROM users WHERE id = $1",
-                    user_id_main_int
-                );
+                SQLite::Database DB_Connection = openDB();
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+                SQLite::Transaction DB_Open_Connection(DB_Connection);
 
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() != "owner") { //Checks permissions
+                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                user_check.bind(1, user_id_main_int);
+                if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) != "owner") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
                     return;
                 }
 
-                pqxx::result user_exists = DB_Open_Connection.exec_params(
-                    "SELECT * FROM users WHERE id = $1;",
-                    user_id_change_int); //selects the user who's value we want to change
-                if (user_exists.empty()) { //Checks to ensure the user exists
+                SQLite::Statement user_exists(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                user_exists.bind(1, user_id_change_int); //selects the user whose value we want to change
+                if (!user_exists.executeStep()) { //Checks to ensure the user exists
                     throw std::runtime_error(DB_QUERY_ERROR);
                 }
 
-                DB_Open_Connection.exec_params(
-                    "UPDATE users SET access = $1 WHERE id = $2;",
-                    access, user_id_change_int);
+                SQLite::Statement update(DB_Connection, "UPDATE users SET access = ? WHERE id = ?");
+                update.bind(1, access);
+                update.bind(2, user_id_change_int);
+                update.exec();
 
                 DB_Open_Connection.commit();
 
@@ -609,43 +617,29 @@ int main(void)
                 return;
             }
 
-            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-            if (!DB_Connection.is_open()) {
-                res.status = 502;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
-                return;
-            }
-            else {
-                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-            }
-
-            pqxx::work DB_Open_Connection{ DB_Connection };
-
             try {
-                pqxx::result user_check = DB_Open_Connection.exec_params(
-                    "SELECT * FROM users WHERE id = $1",
-                    user_id_main_int
-                );
+                SQLite::Database DB_Connection = openDB();
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+                SQLite::Transaction DB_Open_Connection(DB_Connection);
 
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() != "owner") { //Checks permissions
+                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                user_check.bind(1, user_id_main_int);
+                if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) != "owner") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
                     return;
                 }
 
-                pqxx::result user_exists = DB_Open_Connection.exec_params(
-                    "SELECT * FROM users WHERE id = $1;",
-                    user_id_change_int); //selects the user who's value we want to change
-                if (user_exists.empty()) { //Checks to ensure the user exists
+                SQLite::Statement user_exists(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                user_exists.bind(1, user_id_change_int); //selects the user we want to delete
+                if (!user_exists.executeStep()) { //Checks to ensure the user exists
                     throw std::runtime_error(DB_QUERY_ERROR);
                 }
 
-                pqxx::result result = DB_Open_Connection.exec_params(
-                    "DELETE FROM users WHERE id = $1;",
-                    user_id_change_int
-                );
+                SQLite::Statement del(DB_Connection, "DELETE FROM users WHERE id = ?");
+                del.bind(1, user_id_change_int);
+                del.exec();
 
                 DB_Open_Connection.commit();
             }
@@ -684,33 +678,22 @@ int main(void)
                 return;
             }
 
-            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-            if (!DB_Connection.is_open()) {
-                res.status = 502;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
-                return;
-            }
-            else {
-                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-            }
-
-            pqxx::nontransaction DB_Open_Connection{ DB_Connection };
             try {
-                pqxx::result result = DB_Open_Connection.exec(
-                    pqxx::zview("SELECT * from files ORDER BY file_location ASC;") //Selects all the files for this user
-                );
+                SQLite::Database DB_Connection = openDB();
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+
+                SQLite::Statement result(DB_Connection, "SELECT * FROM files ORDER BY file_location ASC"); //Selects all the files
 
                 nlohmann::json tree = nlohmann::json::object(); //Creates JSON object
                 nlohmann::json file_ids = nlohmann::json::object();
                 nlohmann::json file_info = nlohmann::json::object(); //Secondary metadata per path: size, isFolder, ext, created
 
-                for (const auto& row : result) { //Adds each file or folder by going row by row for each folder that got returned from the above query
-                    std::string file_location = row["file_location"].c_str();
-                    std::string file_name = row["file_name"].c_str();
-                    std::string type = row["file_extension"].c_str();
-                    int id = row["id"].as<int>();
-                    long long file_size = row["file_size"].as<long long>();
+                while (result.executeStep()) { //Adds each file or folder by going row by row for each folder that got returned from the above query
+                    std::string file_location = result.getColumn("file_location").getText();
+                    std::string file_name = result.getColumn("file_name").getText();
+                    std::string type = result.getColumn("file_extension").getText();
+                    int id = result.getColumn("id").getInt();
+                    long long file_size = result.getColumn("file_size").getInt64();
                     bool is_folder = (type == "folder");
                     std::string ext = is_folder ? "" : (type.length() > 0 && type[0] == '.' ? type.substr(1) : type);
 
@@ -780,46 +763,31 @@ int main(void)
                 return;
             }
 
-            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-            if (!DB_Connection.is_open()) {
-                res.status = 502;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
-                return;
-            }
-            else {
-                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-            }
-
-            pqxx::nontransaction DB_Open_Connection{ DB_Connection };
-            pqxx::result result;
             std::string file_location;
             std::string file_name;
             std::string type;
             try {
-                pqxx::result user_check = DB_Open_Connection.exec_params(
-                    "SELECT * FROM users WHERE id = $1",
-                    user_id_int
-                );
+                SQLite::Database DB_Connection = openDB();
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
 
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") { //Checks permissions
+                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                user_check.bind(1, user_id_int);
+                if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) == "viewer") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
                     return;
                 }
 
-                result = DB_Open_Connection.exec_params(
-                    "SELECT * FROM files WHERE id = $1;", //Returns the file that the user wants to download
-                    file_id_int
-                );
-                if (result.empty()) {
+                SQLite::Statement fileResult(DB_Connection, "SELECT * FROM files WHERE id = ?"); //Returns the file that the user wants to download
+                fileResult.bind(1, file_id_int);
+                if (!fileResult.executeStep()) {
                     throw std::runtime_error(DB_QUERY_ERROR);
                 }
-                //Extracts the neccesary informaon for sending the file for download from the user
-                file_location = result[0]["file_location"].c_str();
-                file_name = result[0]["file_name"].c_str();
-                type = result[0]["file_extension"].c_str();
+                //Extracts the necessary information for sending the file for download from the user
+                file_location = fileResult.getColumn("file_location").getText();
+                file_name = fileResult.getColumn("file_name").getText();
+                type = fileResult.getColumn("file_extension").getText();
             }
             catch (const std::exception& e) {
                 res.status = 500;
@@ -969,25 +937,15 @@ int main(void)
             fs::space_info space = fs::space(get_file_location());
             uintmax_t available = space.available; // bytes available
 
-            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-            if (!DB_Connection.is_open()) {
-                res.status = 502;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
-                return;
-            }
-            else {
-                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-            }
-
-            pqxx::work DB_Open_Connection{ DB_Connection };
             try {
-                pqxx::result result = DB_Open_Connection.exec_params(
-                    "SELECT COALESCE(SUM(file_size), 0) FROM files;"
-                );
+                SQLite::Database DB_Connection = openDB();
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+
+                SQLite::Statement result(DB_Connection, "SELECT COALESCE(SUM(file_size), 0) FROM files");
+                result.executeStep();
 
                 res.status = 200;
-                res.set_content(std::to_string(result[0][0].as<long long>()), "text/plain"); //API response
+                res.set_content(std::to_string(result.getColumn(0).getInt64()), "text/plain"); //API response
             }
             catch (const std::exception& e) {
                 res.status = 500;
@@ -1035,26 +993,14 @@ int main(void)
                 return;
             }
 
-            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-            if (!DB_Connection.is_open()) {
-                res.status = 502;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
-                return;
-            }
-            else {
-                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-            }
-
-            pqxx::work DB_Open_Connection{ DB_Connection };
+            SQLite::Database DB_Connection = openDB();
+            SQLite::Transaction DB_Open_Connection(DB_Connection);
+            std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
 
             try {
-                pqxx::result user_check = DB_Open_Connection.exec_params(
-                    "SELECT * FROM users WHERE id = $1;",
-                    user_id_int
-                );
-
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") { //Checks permissions
+                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                user_check.bind(1, user_id_int);
+                if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) == "viewer") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
@@ -1164,10 +1110,13 @@ int main(void)
             std::string extension = get_file_extension(file_name);
 
             try {
-                pqxx::result result = DB_Open_Connection.exec_params(
-                    "INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES ($1, $2, $3, $4, $5);",
-                        user_id_int, file_name, file_location, total_bytes, extension
-                ); //Adds the necessary information into the database that way the database and local storage stay updated
+                SQLite::Statement insert(DB_Connection, "INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES (?, ?, ?, ?, ?)");
+                insert.bind(1, user_id_int);
+                insert.bind(2, file_name);
+                insert.bind(3, file_location);
+                insert.bind(4, (long long)total_bytes);
+                insert.bind(5, extension);
+                insert.exec(); //Adds the necessary information into the database so database and local storage stay in sync
 
                 DB_Open_Connection.commit();
             }
@@ -1199,16 +1148,8 @@ int main(void)
                 return;
             }
 
-            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-            if (!DB_Connection.is_open()) {
-                res.status = 502;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
-                return;
-            }
-            else {
-                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-            }
+            SQLite::Database DB_Connection = openDB();
+            std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
 
             nlohmann::json body;
             try {
@@ -1235,23 +1176,21 @@ int main(void)
             std::string new_name = body["new_name"].get<std::string>();
             std::string folder_path = body["folder_path"].get<std::string>();
 
-            pqxx::work DB_Open_Connection{ DB_Connection };
+            SQLite::Transaction DB_Open_Connection(DB_Connection);
             try {
-                pqxx::result user_check = DB_Open_Connection.exec_params(
-                    "SELECT * FROM users WHERE id = $1",
-                    user_id_int
-                );
-
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") { //Checks permissions
+                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                user_check.bind(1, user_id_int);
+                if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) == "viewer") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
                     return;
                 }
 
-                pqxx::result tmpResult = DB_Open_Connection.exec_params(
-                    "SELECT 1 FROM files WHERE user_id = $1 AND file_location = $2 AND file_name = $3 LIMIT 1;",
-                    user_id_int, folder_path, new_name); //Ensures the folder does not already exist in the database
+                SQLite::Statement tmpResult(DB_Connection, "SELECT 1 FROM files WHERE user_id = ? AND file_location = ? AND file_name = ? LIMIT 1");
+                tmpResult.bind(1, user_id_int);
+                tmpResult.bind(2, folder_path);
+                tmpResult.bind(3, new_name); //Ensures the folder does not already exist in the database
                 fs::path newPath;
                 if (!build_safe_path(folder_path, new_name, newPath)) {
                     res.status = 400;
@@ -1259,7 +1198,7 @@ int main(void)
                     DB_Open_Connection.commit();
                     return;
                 }
-                if (!tmpResult.empty() || fs::exists(newPath)) { //Checks if the new name is a duplicate name (by using the database result and the local folders result)
+                if (tmpResult.executeStep() || fs::exists(newPath)) { //Checks if the new name is a duplicate name (by using the database result and the local folders result)
                     DB_Open_Connection.commit();
                     res.status = 409;
                     std::cout << DUPLICATE_FILE_NAME << API_PATH << std::endl;
@@ -1267,10 +1206,13 @@ int main(void)
                     return;
                 }
 
-                pqxx::result result = DB_Open_Connection.exec_params(
-                    "INSERT INTO files (user_id, file_name, file_location, file_extension, file_size) VALUES ($1, $2, $3, $4, $5);",
-                    user_id_int, new_name, folder_path, "folder", -1
-                ); //Inserts the new folder into the database
+                SQLite::Statement insert(DB_Connection, "INSERT INTO files (user_id, file_name, file_location, file_extension, file_size) VALUES (?, ?, ?, ?, ?)");
+                insert.bind(1, user_id_int);
+                insert.bind(2, new_name);
+                insert.bind(3, folder_path);
+                insert.bind(4, std::string("folder"));
+                insert.bind(5, -1);
+                insert.exec(); //Inserts the new folder into the database
 
                 try {
                     fs::create_directory(newPath); //Creates the new folder
@@ -1327,43 +1269,30 @@ int main(void)
                 return;
             }
 
-            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-            if (!DB_Connection.is_open()) {
-                res.status = 502;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
-                return;
-            }
-            else {
-                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-            }
-
-            pqxx::work DB_Open_Connection{ DB_Connection };
             try {
-                pqxx::result user_check = DB_Open_Connection.exec_params(
-                    "SELECT * FROM users WHERE id = $1",
-                    user_id_int
-                );
+                SQLite::Database DB_Connection = openDB();
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+                SQLite::Transaction DB_Open_Connection(DB_Connection);
 
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") { //Checks permissions
+                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                user_check.bind(1, user_id_int);
+                if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) == "viewer") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
                     return;
                 }
 
-
-                pqxx::result result = DB_Open_Connection.exec_params(
-                    "SELECT * from files WHERE id = $1;",
-                    file_id_int); //selects the file we want to rename
-                if (result.empty()) { //Checks to ensure the file exists
+                SQLite::Statement fileResult(DB_Connection, "SELECT * FROM files WHERE id = ?");
+                fileResult.bind(1, file_id_int); //selects the file we want to rename
+                if (!fileResult.executeStep()) { //Checks to ensure the file exists
                     throw std::runtime_error(DB_QUERY_ERROR);
                 }
 
-                std::string file_location = result[0]["file_location"].c_str();
-                std::string file_name = result[0]["file_name"].c_str();
-                std::string file_type = result[0]["file_extension"].c_str();
-                int user_id_int = result[0]["user_id"].as<int>();
+                std::string file_location = fileResult.getColumn("file_location").getText();
+                std::string file_name = fileResult.getColumn("file_name").getText();
+                std::string file_type = fileResult.getColumn("file_extension").getText();
+                int user_id_int = fileResult.getColumn("user_id").getInt();
 
                 auto new_name_it = req.path_params.find("new_name");
                 if (new_name_it != req.path_params.end()) {
@@ -1389,10 +1318,12 @@ int main(void)
                     new_name = body["new_name"].get<std::string>();
                 }
 
-                pqxx::result tmpResult = DB_Open_Connection.exec_params(
-                    "SELECT 1 FROM files WHERE user_id = $1 AND file_location = $2 AND file_name = $3 AND id <> $4 LIMIT 1;",
-                    user_id_int, file_location, new_name, file_id_int);
-                if (!tmpResult.empty()) { //Checks if the new name is a duplicate name
+                SQLite::Statement tmpResult(DB_Connection, "SELECT 1 FROM files WHERE user_id = ? AND file_location = ? AND file_name = ? AND id <> ? LIMIT 1");
+                tmpResult.bind(1, user_id_int);
+                tmpResult.bind(2, file_location);
+                tmpResult.bind(3, new_name);
+                tmpResult.bind(4, file_id_int);
+                if (tmpResult.executeStep()) { //Checks if the new name is a duplicate name
                     DB_Open_Connection.commit();
                     res.status = 409;
                     std::cout << DUPLICATE_FILE_NAME << API_PATH << std::endl;
@@ -1418,15 +1349,19 @@ int main(void)
                 }
 
                 try {
-                    DB_Open_Connection.exec_params(
-                        "UPDATE files SET file_name = $1 WHERE id = $2;",
-                        new_name, file_id_int);
+                    SQLite::Statement updateName(DB_Connection, "UPDATE files SET file_name = ? WHERE id = ?");
+                    updateName.bind(1, new_name);
+                    updateName.bind(2, file_id_int);
+                    updateName.exec();
                     if (file_type == "folder") { //Cascade: update file_location for all children when a folder is renamed
                         std::string old_prefix = file_location.empty() ? file_name : file_location + "/" + file_name;
                         std::string new_prefix = file_location.empty() ? new_name : file_location + "/" + new_name;
-                        DB_Open_Connection.exec_params(
-                            "UPDATE files SET file_location = $1 || SUBSTRING(file_location, LENGTH($2) + 1) WHERE file_location = $2 OR file_location LIKE $2 || '/%';",
-                            new_prefix, old_prefix);
+                        SQLite::Statement cascade(DB_Connection,
+                            "UPDATE files SET file_location = ?1 || SUBSTR(file_location, LENGTH(?2) + 1) "
+                            "WHERE file_location = ?2 OR file_location LIKE ?2 || '/%'");
+                        cascade.bind(1, new_prefix);
+                        cascade.bind(2, old_prefix);
+                        cascade.exec();
                     }
                 }
                 catch (const std::exception& e) {
@@ -1445,7 +1380,6 @@ int main(void)
                     return;
                 }
 
-                
                 DB_Open_Connection.commit();
 
                 res.status = 200;
@@ -1488,46 +1422,32 @@ int main(void)
                 return;
             }
 
-            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-            if (!DB_Connection.is_open()) {
-                res.status = 502;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
-                return;
-            }
-            else {
-                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-            }
-
-            pqxx::work DB_Open_Connection{ DB_Connection };
-            pqxx::result result;
+            SQLite::Database DB_Connection = openDB();
+            std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+            SQLite::Transaction DB_Open_Connection(DB_Connection);
             std::string file_location;
             std::string file_name;
             std::string file_type;
 
             try {
-                pqxx::result user_check = DB_Open_Connection.exec_params(
-                    "SELECT * FROM users WHERE id = $1",
-                    user_id_int
-                );
-
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") { //Checks permissions
+                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                user_check.bind(1, user_id_int);
+                if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) == "viewer") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
                     return;
                 }
 
-                result = DB_Open_Connection.exec_params(
-                    "SELECT * FROM files WHERE id = $1;",
-                    file_id_int);
-                if (result.empty()) { //Ensures the file exists
+                SQLite::Statement fileResult(DB_Connection, "SELECT * FROM files WHERE id = ?");
+                fileResult.bind(1, file_id_int);
+                if (!fileResult.executeStep()) { //Ensures the file exists
                     throw std::runtime_error(DB_QUERY_ERROR);
                 }
 
-                file_location = result[0]["file_location"].c_str();
-                file_name = result[0]["file_name"].c_str();
-                file_type = result[0]["file_extension"].c_str();
+                file_location = fileResult.getColumn("file_location").getText();
+                file_name = fileResult.getColumn("file_name").getText();
+                file_type = fileResult.getColumn("file_extension").getText();
             }
             catch (const std::exception& e) {
                 res.status = 500;
@@ -1573,16 +1493,19 @@ int main(void)
             }
 
             try {
-                DB_Open_Connection.exec_params(
-                    "UPDATE files SET file_location = $1 WHERE id = $2;",
-                        new_file_location,
-                        file_id_int); //Updates the location of the file in the database
+                SQLite::Statement updateLoc(DB_Connection, "UPDATE files SET file_location = ? WHERE id = ?");
+                updateLoc.bind(1, new_file_location);
+                updateLoc.bind(2, file_id_int);
+                updateLoc.exec(); //Updates the location of the file in the database
                 if (file_type == "folder") { //Cascade: update file_location for all children when a folder is moved
                     std::string old_prefix = file_location.empty() ? file_name : file_location + "/" + file_name;
                     std::string new_prefix = new_file_location.empty() ? file_name : new_file_location + "/" + file_name;
-                    DB_Open_Connection.exec_params(
-                        "UPDATE files SET file_location = $1 || SUBSTRING(file_location, LENGTH($2) + 1) WHERE file_location = $2 OR file_location LIKE $2 || '/%';",
-                        new_prefix, old_prefix);
+                    SQLite::Statement cascade(DB_Connection,
+                        "UPDATE files SET file_location = ?1 || SUBSTR(file_location, LENGTH(?2) + 1) "
+                        "WHERE file_location = ?2 OR file_location LIKE ?2 || '/%'");
+                    cascade.bind(1, new_prefix);
+                    cascade.bind(2, old_prefix);
+                    cascade.exec();
                 }
             }
             catch (const std::exception& e) {
@@ -1640,47 +1563,32 @@ int main(void)
                 return;
             }
 
-            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-            if (!DB_Connection.is_open()) {
-                res.status = 502;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
-                return;
-            }
-            else {
-                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-            }
-
-            pqxx::work DB_Open_Connection{ DB_Connection };
-
-            pqxx::result result;
+            SQLite::Database DB_Connection = openDB();
+            std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+            SQLite::Transaction DB_Open_Connection(DB_Connection);
             std::string file_location;
             std::string file_name;
             std::string file_type;
 
             try {
-                pqxx::result user_check = DB_Open_Connection.exec_params(
-                    "SELECT * FROM users WHERE id = $1",
-                    user_id_int
-                );
-
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() == "viewer") { //Checks permissions
+                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                user_check.bind(1, user_id_int);
+                if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) == "viewer") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
                     return;
                 }
 
-                result = DB_Open_Connection.exec_params(
-                    "SELECT * FROM files WHERE id = $1;",
-                    file_id_int);
-                if (result.empty()) { //Ensues the file exists in the database
+                SQLite::Statement fileResult(DB_Connection, "SELECT * FROM files WHERE id = ?");
+                fileResult.bind(1, file_id_int);
+                if (!fileResult.executeStep()) { //Ensures the file exists in the database
                     throw std::runtime_error(DB_QUERY_ERROR);
                 }
 
-                file_location = result[0]["file_location"].c_str();
-                file_name = result[0]["file_name"].c_str();
-                file_type = result[0]["file_extension"].c_str();
+                file_location = fileResult.getColumn("file_location").getText();
+                file_name = fileResult.getColumn("file_name").getText();
+                file_type = fileResult.getColumn("file_extension").getText();
             }
             catch (const std::exception& e) {
                 res.status = 500;
@@ -1698,16 +1606,15 @@ int main(void)
             }
 
             try {
-                DB_Open_Connection.exec_params(
-                    "DELETE FROM files WHERE id = $1;",
-                    file_id_int
-                );
+                SQLite::Statement del(DB_Connection, "DELETE FROM files WHERE id = ?");
+                del.bind(1, file_id_int);
+                del.exec();
                 if (file_type == "folder") { // also remove all DB records whose path is inside this folder
                     std::string folder_prefix = file_location.empty() ? file_name : file_location + "/" + file_name;
-                    DB_Open_Connection.exec_params(
-                        "DELETE FROM files WHERE file_location = $1 OR file_location LIKE $2;",
-                        folder_prefix, folder_prefix + "/%"
-                    );
+                    SQLite::Statement delChildren(DB_Connection, "DELETE FROM files WHERE file_location = ? OR file_location LIKE ?");
+                    delChildren.bind(1, folder_prefix);
+                    delChildren.bind(2, folder_prefix + "/%");
+                    delChildren.exec();
                 }
             }
             catch (const std::exception& e) {
@@ -1778,25 +1685,14 @@ int main(void)
                 return;
             }
 
-            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-            if (!DB_Connection.is_open()) {
-                res.status = 502;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
-                return;
-            }
-            else {
-                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-            }
-
-            pqxx::work DB_Open_Connection{ DB_Connection };
             try {
-                pqxx::result user_check = DB_Open_Connection.exec_params(
-                    "SELECT * FROM users WHERE id = $1",
-                    user_id_int
-                );
+                SQLite::Database DB_Connection = openDB();
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+                SQLite::Transaction DB_Open_Connection(DB_Connection);
 
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() != "owner") { //Checks permissions
+                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                user_check.bind(1, user_id_int);
+                if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) != "owner") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
@@ -1804,7 +1700,7 @@ int main(void)
                 }
 
                 try {
-                   reinitialize_files(DB_Open_Connection, user_id_int); //calls the reinitialize route
+                    reinitialize_files(DB_Connection, user_id_int); //calls the reinitialize route
                 }
                 catch (const std::exception& e) {
                     res.status = 500;
@@ -1861,25 +1757,14 @@ int main(void)
 
             std::string new_file_location = body["new_location"].get<std::string>();
 
-            pqxx::connection DB_Connection(DB_CONNECTION_STRING);
-            if (!DB_Connection.is_open()) {
-                res.status = 502;
-                std::cout << BAD_DB_CONNECTION << API_PATH << std::endl;
-                res.set_content(BAD_DB_CONNECTION, "text/plain");
-                return;
-            }
-            else {
-                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
-            }
-
-            pqxx::work DB_Open_Connection{ DB_Connection };
             try {
-                pqxx::result user_check = DB_Open_Connection.exec_params(
-                    "SELECT * FROM users WHERE id = $1",
-                    user_id_int
-                );
+                SQLite::Database DB_Connection = openDB();
+                std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
+                SQLite::Transaction DB_Open_Connection(DB_Connection);
 
-                if (user_check.empty() || user_check[0]["access"].as<std::string>() != "owner") { //Checks permissions
+                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                user_check.bind(1, user_id_int);
+                if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) != "owner") { //Checks permissions
                     res.status = 403;
                     std::cout << ACCESS_DENIED << API_PATH << std::endl;
                     res.set_content(ACCESS_DENIED, "text/plain");
@@ -1896,13 +1781,12 @@ int main(void)
                 }
 
                 set_file_location(new_path.string()); //changes the base file location
-                DB_Open_Connection.exec_params(
-                    "UPDATE server_info SET file_location = $1 WHERE id = 1;",
-                    new_path.string()
-                ); //persists the new location to the database so it survives server restarts
+                SQLite::Statement updateLoc(DB_Connection, "UPDATE server_info SET file_location = ? WHERE id = 1");
+                updateLoc.bind(1, new_path.string());
+                updateLoc.exec(); //persists the new location to the database so it survives server restarts
 
                 try {
-                    reinitialize_files(DB_Open_Connection, user_id_int); //calls the reinitialize route
+                    reinitialize_files(DB_Connection, user_id_int); //re-indexes all files from the new path
                 }
                 catch (const std::exception& e) {
                     res.status = 500;
