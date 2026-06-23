@@ -1,0 +1,2 @@
+# Exclude vendored third-party libraries from GitHub language statistics
+C++_Server/header_libs/** linguist-vendored
