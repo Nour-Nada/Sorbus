@@ -8,6 +8,37 @@
     position: relative;
 }
 
+/* Uninitialized state — shown when no storage path is configured */
+.fv-uninitialized {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: #6a7f9a;
+    padding: 40px;
+    text-align: center;
+}
+
+.fv-uninitialized .material-icons {
+    font-size: 56px;
+    color: #2e4a6a;
+}
+
+.fv-uninitialized-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #9ab0cc;
+    margin: 0;
+}
+
+.fv-uninitialized-hint {
+    font-size: 14px;
+    color: #5a7088;
+    margin: 0;
+}
+
 /* Drag-to-upload overlay — shown while external files are dragged over the view */
 .fv-upload-overlay {
     position: absolute;

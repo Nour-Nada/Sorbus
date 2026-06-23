@@ -1,5 +1,4 @@
 import express, { response } from "express";
-import bodyParser from "body-parser";
 import axios from "axios";
 import dotenv from "dotenv";
 import bcrypt from "bcrypt";
@@ -54,10 +53,9 @@ const verifyUserId = (paramName = 'user_id') => (req, res, next) => { //Checks t
 };
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cors({ origin: process.env.CORS_ORIGIN, credentials: true }));
 app.use(cookieParser());
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static("public"));
 
 const REFRESH_COOKIE_OPTIONS = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'Strict', maxAge: 7 * 24 * 60 * 60 * 1000 };
 const signRefreshToken = (userId, username, access) => jwt.sign({ userId, username, access }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '7d' }); //Signs a long-lived refresh token
@@ -73,6 +71,7 @@ const C_Server_Route = process.env.C_Server_Route;
 //Other variables
 const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()\-_=+\[\]{};':",.<>/?\\|`~]).{8,}$/;
 
 
 
@@ -114,6 +113,9 @@ app.post("/api/user/signup", limiter, async (req, res) => { //The route to signu
   if (!EMAIL_REGEX.test(req.body.email)) {
     return res.status(400).send("Invalid email format.");
   }
+  if (!PASSWORD_REGEX.test(req.body.password)) {
+    return res.status(400).send("Password must be at least 8 characters and include an uppercase letter, lowercase letter, number, and special character.");
+  }
   try {
     const password = await bcrypt.hash(req.body.password, 10); //Hashes the password using bcrypt before sending it to the C++ server
     const response = await axios({
@@ -136,7 +138,7 @@ app.post("/api/user/signup", limiter, async (req, res) => { //The route to signu
     const userInfo = { user_id: response.data.user_id, username: response.data.username, access: response.data.access, jwt_token: token }; //Builds response without exposing the hashed password
     res.status(response.status).json(userInfo); //Sets the status to the status of the response from the C++ server
   } catch (error) {
-    console.error("Error signing up:", error);
+    console.error('[/api/user/signup]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) {
       return res.status(error.response.status).send(error.response.data);
     }
@@ -165,7 +167,7 @@ app.post("/api/user/login/:username", limiter, async (req, res) => { //The route
     const userInfo = { user_id: response.data.user_id, username: response.data.username, access: response.data.access, jwt_token: token }; //Builds response without exposing the hashed password
     res.status(200).json(userInfo);
   } catch (error) {
-    console.error("Error logging in:", error);
+    console.error('[/api/user/login]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) {
       return res.status(error.response.status).send(error.response.data);
     }
@@ -182,7 +184,7 @@ app.get("/api/user/name", limiter, verifyJWT, async (req, res) => { //The route 
     });
     res.status(response.status).json(response.data);
   } catch (error) {
-    console.error("Error retreving users:", error);
+    console.error('[/api/user/name]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) {
       return res.status(error.response.status).send(error.response.data);
     }
@@ -200,7 +202,7 @@ app.patch("/api/user/change/access/:user_id_main/:user_id_change/:access", limit
     });
     res.status(response.status).json(response.data);
   } catch (error) {
-    console.error("Error changing user access:", error);
+    console.error('[/api/user/change/access]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) {
       return res.status(error.response.status).send(error.response.data);
     }
@@ -218,7 +220,7 @@ app.delete("/api/user/delete/:user_id_main/:user_id_change", limiter, verifyJWT,
     });
     res.status(response.status).json(response.data);
   } catch (error) {
-    console.error("Error deleting user:", error);
+    console.error('[/api/user/delete]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) {
       return res.status(error.response.status).send(error.response.data);
     }
@@ -248,7 +250,7 @@ app.get("/api/files/name/:user_id", limiter, verifyJWT, verifyUserId(), async (r
     });
     res.status(response.status).json(response.data);
   } catch (error) {
-    console.error("Error retrieving file names:", error);
+    console.error('[/api/files/name]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) {
       return res.status(error.response.status).send(error.response.data);
     }
@@ -268,7 +270,7 @@ app.get("/api/files/download/:file_id/:user_id", limiter, verifyJWT, verifyUserI
     res.status(response.status); //Sets the status to the status of the response from the C++ server
     response.data.pipe(res); //Uses response to pipe the data from the frontend to the C++ server
   } catch (error) {
-    console.error("Error downloading file:", error);
+    console.error('[/api/files/download]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) {
       return res.status(error.response.status).send(error.response.data);
     }
@@ -285,7 +287,7 @@ app.get("/api/files/storage", limiter, verifyJWT, async (req, res) => { //The ro
     });
     res.status(response.status).send(response.data);
   } catch (error) {
-    console.error("Error retrieving remaining storage on the disk:", error);
+    console.error('[/api/files/storage]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) {
       return res.status(error.response.status).send(error.response.data);
     }
@@ -302,7 +304,7 @@ app.get("/api/files/filesizes", limiter, verifyJWT, async (req, res) => { //The 
     });
     res.status(response.status).send(response.data);
   } catch (error) {
-    console.error("Error retrieving file sizes:", error);
+    console.error('[/api/files/filesizes]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) {
       return res.status(error.response.status).send(error.response.data);
     }
@@ -336,7 +338,7 @@ app.post("/api/files/upload/:user_id", limiter, verifyJWT, verifyUserId(), async
     response.data.pipe(res); //Pipes the data from the frontend into the C++ server
 
   } catch (error) {
-    console.error("Error uploading file:", error);
+    console.error('[/api/files/upload]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) {
       res.status(error.response.status);
       error.response.data.pipe(res); //Pipes the error stream from the C++ server
@@ -357,7 +359,7 @@ app.post("/api/files/create/:user_id", limiter, verifyJWT, verifyUserId(), async
     });
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
-    console.error("Error creating file:", error);
+    console.error('[/api/files/create]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) {
       return res.status(error.response.status).send(error.response.data);
     }
@@ -381,7 +383,7 @@ app.patch("/api/files/name/:file_id/:user_id", limiter, verifyJWT, verifyUserId(
     });
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
-    console.error("Error changing file name:", error);
+    console.error('[/api/files/name PATCH]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) {
       return res.status(error.response.status).send(error.response.data);
     }
@@ -400,7 +402,7 @@ app.patch("/api/files/move/:file_id/:user_id", limiter, verifyJWT, verifyUserId(
     });
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
-    console.error("Error changing file location:", error);
+    console.error('[/api/files/move]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) {
       return res.status(error.response.status).send(error.response.data);
     }
@@ -421,7 +423,7 @@ app.delete("/api/files/delete/:file_id/:user_id", limiter, verifyJWT, verifyUser
     });
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
-    console.error("Error deleting the file:", error);
+    console.error('[/api/files/delete]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) {
       return res.status(error.response.status).send(error.response.data);
     }
@@ -444,7 +446,7 @@ app.get("/api/features/location", limiter, verifyJWT, async (req, res) => { //Re
     });
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
-    console.error("Error retrieving the file path:", error);
+    console.error('[/api/features/location]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) {
       return res.status(error.response.status).send(error.response.data);
     }
@@ -462,7 +464,7 @@ app.patch("/api/features/reinitialize/:user_id", verifyJWT, verifyUserId(), limi
     });
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
-    console.error("Error reinitializing the files:", error);
+    console.error('[/api/features/reinitialize]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) {
       return res.status(error.response.status).send(error.response.data);
     }
@@ -481,7 +483,7 @@ app.patch("/api/features/location/:user_id", verifyJWT, verifyUserId(), limiter,
     });
     res.status(response.status).send(response.data); //Sets the status to the status of the response from the C++ server
   } catch (error) {
-    console.error("Error changing the folder:", error);
+    console.error('[/api/features/location PATCH]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) {
       return res.status(error.response.status).send(error.response.data);
     }
@@ -511,7 +513,7 @@ app.get("/api/files/download-stream/:file_id/:user_id", downloadLimiter, async (
     res.status(response.status);
     response.data.pipe(res);
   } catch (error) {
-    console.error("Error downloading file:", error);
+    console.error('[/api/files/download-stream]', error.response?.status ?? error.code, error.response?.data || error.message);
     if (error.response) return res.status(error.response.status).send(error.response.data);
     res.status(500).send("Error downloading file");
   }

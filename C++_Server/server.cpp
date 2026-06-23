@@ -12,13 +12,11 @@
 #include <shared_mutex>
 #include <cstdlib>
 
-//Download System Headers
-#include "header_libs/SQLiteCpp/SQLiteCpp.h"
-
-//Downloaded one file headers
-#include "header_libs/httplib.h"
-#include "header_libs/json.hpp"
-#include "header_libs/miniz/miniz.h"
+//Downloaded header libraries
+#include "header_libs/SQLiteCpp/SQLiteCpp.h" //https://github.com/SRombauts/SQLiteCpp/tree/master
+#include "header_libs/httplib.h" //https://github.com/yhirose/cpp-httplib?tab=readme-ov-file
+#include "header_libs/json.hpp" //https://github.com/nlohmann/json/tree/develop
+#include "header_libs/miniz/miniz.h" //https://github.com/richgel999/miniz
 
 //Created headers
 // ...
@@ -35,15 +33,15 @@ httplib::Server svr;
 //Global Variables
 const std::string API_KEY = []() {
     const char* value = std::getenv("FILEAPP_API_KEY");
-    return (value && *value) ? std::string(value) : "test12345";
-}(); //The API key
+    return (value && *value) ? std::string(value) : "dev-key-change-me";
+}(); //The API key — set via FILEAPP_API_KEY env var, falls back to dev default if not set
 const std::string OUTPUT_FILE = "server_output.txt"; //Where the print statements, errors, and more gets outputted to in deployment
 
 std::shared_mutex FILE_LOCATION_MUTEX; //Mutex to protect the file location string from concurrent read/write access across threads
 std::string FILE_LOCATION = []() {
     const char* value = std::getenv("FILEAPP_FILE_LOCATION");
-    return (value && *value) ? std::string(value) : "C:/Users/nour2/Videos/Test";
-}(); //The location of the stored files
+    return (value && *value) ? std::string(value) : "";
+}(); //The location of the stored files — set via FILEAPP_FILE_LOCATION env var or through the Account page
 
 std::string get_file_location() { // Reads the file location safely across threads
     std::shared_lock lock(FILE_LOCATION_MUTEX);
@@ -138,6 +136,9 @@ void initialize_schema() { //Creates SQLite tables and seeds server_info on firs
         ")"
     );
     db.exec("INSERT OR IGNORE INTO server_info (id, server_status, register_key, file_location) VALUES (1, 0, 'changeme', '')");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_files_location ON files(file_location)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)");
 }
 
 //Global String Errors
@@ -275,6 +276,9 @@ void reinitialize_files(SQLite::Database &db, int user_id) { //Reinitializes the
 
 int main(void)
 {
+    if (API_KEY.empty()) {
+        std::cerr << "WARNING: FILEAPP_API_KEY not set. Using default dev key — do not use in production.\n";
+    }
 
     initialize_schema();       //Creates SQLite tables on first run, safe to call every startup
     initialize_file_location(); //Loads the file storage location from the database before accepting requests
@@ -282,7 +286,6 @@ int main(void)
 
     //Opens up the file to which the output will be redirected
     std::ofstream logFile(OUTPUT_FILE, std::ios::app);
-    /* //Currently commented out so I can see the output in the console however in deployment this will be un commented
     if (!logFile.is_open()) {
         std::cerr << "Failed to open log file!" << std::endl;
         return 1;
@@ -290,7 +293,6 @@ int main(void)
     //Redirects output of cout to the file
     std::streambuf* coutBuf = std::cout.rdbuf();  // save original buffer
     std::cout.rdbuf(logFile.rdbuf()); //changes original buffer
-    */
 
     svr.set_pre_request_handler([&](const httplib::Request& req, httplib::Response& res) { //Does the api key check logic before even allowing any routes to  be hit
             LOG_TIME();
@@ -407,7 +409,7 @@ int main(void)
                 insertUser.bind(4, access);
                 insertUser.exec();
 
-                SQLite::Statement result(DB_Connection, "SELECT * FROM users WHERE username = ? OR email = ?");
+                SQLite::Statement result(DB_Connection, "SELECT id, username, access FROM users WHERE username = ? OR email = ?");
                 result.bind(1, username);
                 result.bind(2, email);
                 result.executeStep();
@@ -476,7 +478,7 @@ int main(void)
                 SQLite::Database DB_Connection = openDB();
                 std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
 
-                SQLite::Statement result(DB_Connection, "SELECT * FROM users");
+                SQLite::Statement result(DB_Connection, "SELECT id, username, email, access FROM users");
                 nlohmann::json tree = nlohmann::json::object(); //Creates JSON object
 
                 while (result.executeStep()) { //Adds each user
@@ -551,7 +553,7 @@ int main(void)
                 std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
                 SQLite::Transaction DB_Open_Connection(DB_Connection);
 
-                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                SQLite::Statement user_check(DB_Connection, "SELECT id, access FROM users WHERE id = ?");
                 user_check.bind(1, user_id_main_int);
                 if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) != "owner") { //Checks permissions
                     res.status = 403;
@@ -560,7 +562,7 @@ int main(void)
                     return;
                 }
 
-                SQLite::Statement user_exists(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                SQLite::Statement user_exists(DB_Connection, "SELECT id, access FROM users WHERE id = ?");
                 user_exists.bind(1, user_id_change_int); //selects the user whose value we want to change
                 if (!user_exists.executeStep()) { //Checks to ensure the user exists
                     throw std::runtime_error(DB_QUERY_ERROR);
@@ -624,7 +626,7 @@ int main(void)
                 std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
                 SQLite::Transaction DB_Open_Connection(DB_Connection);
 
-                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                SQLite::Statement user_check(DB_Connection, "SELECT id, access FROM users WHERE id = ?");
                 user_check.bind(1, user_id_main_int);
                 if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) != "owner") { //Checks permissions
                     res.status = 403;
@@ -633,7 +635,7 @@ int main(void)
                     return;
                 }
 
-                SQLite::Statement user_exists(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                SQLite::Statement user_exists(DB_Connection, "SELECT id, access FROM users WHERE id = ?");
                 user_exists.bind(1, user_id_change_int); //selects the user we want to delete
                 if (!user_exists.executeStep()) { //Checks to ensure the user exists
                     throw std::runtime_error(DB_QUERY_ERROR);
@@ -677,6 +679,12 @@ int main(void)
                 std::cout << e.what() << std::endl;
                 res.status = 400;
                 res.set_content(BAD_PARAMETER, "text/plain");
+                return;
+            }
+
+            if (get_file_location().empty()) { //Returns an empty tree when storage path is not yet configured
+                res.status = 200;
+                res.set_content(nlohmann::json{{"tree", nlohmann::json::object()}, {"fileIds", nlohmann::json::object()}, {"fileInfo", nlohmann::json::object()}, {"initialized", false}}.dump(), "application/json");
                 return;
             }
 
@@ -728,7 +736,7 @@ int main(void)
                 }
 
                 res.status = 200;
-                res.set_content(nlohmann::json{{"tree", tree}, {"fileIds", file_ids}, {"fileInfo", file_info}}.dump(), "application/json"); //API response
+                res.set_content(nlohmann::json{{"tree", tree}, {"fileIds", file_ids}, {"fileInfo", file_info}, {"initialized", true}}.dump(), "application/json"); //API response
             }
             catch (const std::exception& e) {
                 res.status = 500;
@@ -772,7 +780,7 @@ int main(void)
                 SQLite::Database DB_Connection = openDB();
                 std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
 
-                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                SQLite::Statement user_check(DB_Connection, "SELECT id, access FROM users WHERE id = ?");
                 user_check.bind(1, user_id_int);
                 if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) == "viewer") { //Checks permissions
                     res.status = 403;
@@ -924,7 +932,14 @@ int main(void)
             LOG_CALL();
             std::string API_PATH = "GET: /api/files/storage"; //Path in variable for error messages
 
-            fs::space_info space = fs::space(get_file_location());
+            std::string loc = get_file_location();
+            if (loc.empty()) { //Returns 0 when storage path is not yet configured
+                res.status = 200;
+                res.set_content("0", "text/plain");
+                return;
+            }
+
+            fs::space_info space = fs::space(loc);
             uintmax_t available = space.available; // bytes available
 
             res.status = 200;
@@ -935,6 +950,12 @@ int main(void)
         svr.Get("/api/files/filesizes", [&](const httplib::Request& req, httplib::Response& res) { //Retrieving the storage of the files in the location
             LOG_CALL();
             std::string API_PATH = "GET: /api/files/filesizes"; //Path in variable for error messages
+
+            if (get_file_location().empty()) { //Returns 0 when storage path is not yet configured
+                res.status = 200;
+                res.set_content("0", "text/plain");
+                return;
+            }
 
             fs::space_info space = fs::space(get_file_location());
             uintmax_t available = space.available; // bytes available
@@ -988,6 +1009,11 @@ int main(void)
             if (req.has_header("file_name") && req.has_header("file_location")) {
                 file_name = req.get_header_value("file_name");
                 file_location = req.get_header_value("file_location");
+                if (file_name.find('\0') != std::string::npos || file_location.find('\0') != std::string::npos) {
+                    res.status = 400;
+                    res.set_content(BAD_PARAMETER, "text/plain");
+                    return;
+                }
             }
             else {
                 res.status = 400;
@@ -1000,7 +1026,7 @@ int main(void)
             std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
 
             try {
-                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                SQLite::Statement user_check(DB_Connection, "SELECT id, access FROM users WHERE id = ?");
                 user_check.bind(1, user_id_int);
                 if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) == "viewer") { //Checks permissions
                     res.status = 403;
@@ -1180,7 +1206,7 @@ int main(void)
 
             SQLite::Transaction DB_Open_Connection(DB_Connection);
             try {
-                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                SQLite::Statement user_check(DB_Connection, "SELECT id, access FROM users WHERE id = ?");
                 user_check.bind(1, user_id_int);
                 if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) == "viewer") { //Checks permissions
                     res.status = 403;
@@ -1276,7 +1302,7 @@ int main(void)
                 std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
                 SQLite::Transaction DB_Open_Connection(DB_Connection);
 
-                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                SQLite::Statement user_check(DB_Connection, "SELECT id, access FROM users WHERE id = ?");
                 user_check.bind(1, user_id_int);
                 if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) == "viewer") { //Checks permissions
                     res.status = 403;
@@ -1432,7 +1458,7 @@ int main(void)
             std::string file_type;
 
             try {
-                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                SQLite::Statement user_check(DB_Connection, "SELECT id, access FROM users WHERE id = ?");
                 user_check.bind(1, user_id_int);
                 if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) == "viewer") { //Checks permissions
                     res.status = 403;
@@ -1573,7 +1599,7 @@ int main(void)
             std::string file_type;
 
             try {
-                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                SQLite::Statement user_check(DB_Connection, "SELECT id, access FROM users WHERE id = ?");
                 user_check.bind(1, user_id_int);
                 if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) == "viewer") { //Checks permissions
                     res.status = 403;
@@ -1692,7 +1718,7 @@ int main(void)
                 std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
                 SQLite::Transaction DB_Open_Connection(DB_Connection);
 
-                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                SQLite::Statement user_check(DB_Connection, "SELECT id, access FROM users WHERE id = ?");
                 user_check.bind(1, user_id_int);
                 if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) != "owner") { //Checks permissions
                     res.status = 403;
@@ -1764,7 +1790,7 @@ int main(void)
                 std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
                 SQLite::Transaction DB_Open_Connection(DB_Connection);
 
-                SQLite::Statement user_check(DB_Connection, "SELECT * FROM users WHERE id = ?");
+                SQLite::Statement user_check(DB_Connection, "SELECT id, access FROM users WHERE id = ?");
                 user_check.bind(1, user_id_int);
                 if (!user_check.executeStep() || std::string(user_check.getColumn("access").getText()) != "owner") { //Checks permissions
                     res.status = 403;
@@ -1827,7 +1853,7 @@ int main(void)
 
     std::string currTime = "[" + get_time_stamp() + "] ";
     std::cout << std::endl << std::endl << currTime << "Server listening on port " << PORT << " ...\n";
-    svr.listen("localhost", PORT);
+    svr.listen("0.0.0.0", PORT);
 
     //std::cout << std::endl << std::endl << "The amount of API calls made to valid endpoints are: " << api_traffic_count << std::endl;
     return api_traffic_count.load(std::memory_order_relaxed); //Returns how many API calls were made to valid endpoints while the server was open

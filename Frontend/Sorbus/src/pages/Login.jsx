@@ -6,7 +6,7 @@ import axios from 'axios';
 import '../styles/Login-Signup.css'
 import sorbusLogo from '../assets/sorbus_logo.png';
 
-// Test account for reviewers — username: testuser · email: test · password: test123
+// Test account — username: testuser · password: test123
 
 function Login() {
   const [error, setError] = useState(false);

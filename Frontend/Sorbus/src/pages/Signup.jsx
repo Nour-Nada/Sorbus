@@ -7,13 +7,26 @@ import '../styles/Login-Signup.css'
 import sorbusLogo from '../assets/sorbus_logo.png';
 
 function Signup() {
-  const [error, setError] = useState(false);
+  const [error, setError] = useState('');
   const [usernameError, setUsernameError] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [regKey, setRegKey] = useState('');
+
+  const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()\-_=+\[\]{};':",.<>/?\\|`~]).{8,}$/;
+
+  const validatePassword = (val) => {
+    // Returns an error string if password does not meet requirements, empty string if valid
+    if (val.length < 8) return 'At least 8 characters required.';
+    if (!/[A-Z]/.test(val)) return 'Must include at least one uppercase letter.';
+    if (!/[a-z]/.test(val)) return 'Must include at least one lowercase letter.';
+    if (!/\d/.test(val)) return 'Must include at least one number.';
+    if (!/[!@#$%^&*()\-_=+\[\]{};':",.<>/?\\|`~]/.test(val)) return 'Must include at least one special character.';
+    return '';
+  };
 
   const { login, isLoggedIn } = useAuthContext();
   const { updateUserId, setUsername: setAccountUsername, setAccess } = useAccountContext();
@@ -22,6 +35,8 @@ function Signup() {
 
   const signUp = async () => {
     // Sends signup request and stores session data on success
+    const pwErr = validatePassword(password);
+    if (pwErr) { setPasswordError(pwErr); return; }
     try {
       const response = await axios.post(`/api/user/signup`, { username, email, password, reg_key: regKey }, { _retry: true });
       const { user_id, username: returnedUsername, access, jwt_token } = response.data;
@@ -30,8 +45,8 @@ function Signup() {
       setAccountUsername(returnedUsername);
       setAccess(access);
       navigate('/home');
-    } catch {
-      setError(true);
+    } catch (err) {
+      setError(err.response?.data || 'Could not create account. Check your registration key.');
     }
   };
 
@@ -46,7 +61,7 @@ function Signup() {
         </button>
         {error && (
           <div className="error-text">
-            <p>Could not create account. Check your registration key.</p>
+            <p>{error}</p>
           </div>
         )}
         <div className="two-buttons">
@@ -80,7 +95,14 @@ function Signup() {
           />
           {emailError && <p className="field-error">{emailError}</p>}
           <p className="form-label">PASSWORD</p>
-          <input type="password" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <input
+            type="password"
+            placeholder="Enter your password"
+            value={password}
+            required
+            onChange={(e) => { setPassword(e.target.value); setPasswordError(validatePassword(e.target.value)); setError(''); }}
+          />
+          {passwordError && <p className="field-error">{passwordError}</p>}
           <p className="form-label">REGISTRATION KEY</p>
           <input type="password" placeholder="Enter your registration key" value={regKey} onChange={(e) => setRegKey(e.target.value)} required />
           <p className="helper-text">Contact your server owner for a registration key.</p>

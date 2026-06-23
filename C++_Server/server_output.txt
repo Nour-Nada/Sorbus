@@ -1,0 +1,97 @@
+
+
+[2026-06-22 19:05:21] Server listening on port 8080 ...
+
+
+[2026-06-22 19:06:15] Server listening on port 8080 ...
+
+
+[2026-06-22 19:07:11] Server listening on port 8080 ...
+
+
+[2026-06-22 19:09:26] Server listening on port 8080 ...
+
+
+[2026-06-22 19:11:50] Server listening on port 8080 ...
+
+
+[2026-06-23 07:43:37] Server listening on port 8080 ...
+
+
+[2026-06-23 07:44:12] Server listening on port 8080 ...
+
+[2026-06-23 07:45:49] 
+Connected to SQLite Database; API Path GET: /api/files/name
+
+[2026-06-23 07:45:52] 
+Connected to SQLite Database; API Path GET: /api/files/name
+
+[2026-06-23 07:45:54] 
+
+[2026-06-23 07:45:54] 
+
+[2026-06-23 07:45:54] 
+
+[2026-06-23 07:45:54] 
+
+[2026-06-23 07:46:28] 
+
+[
+2026-06-23 07:46:28[] 
+Connected to SQLite Database; API Path GET: /api/user/name
+2026-06-23 07:46:28
+] 
+[2026-06-23 07:46:28] 
+
+[2026-06-23 07:46:28] 
+
+[2026-06-23 07:46:28] 
+
+[2026-06-23 07:46:28] 
+
+[2026-06-23 07:46:28] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-06-23 07:46:30] 
+
+[2026-06-23 07:46:30] 
+
+[2026-06-23 07:46:30] 
+
+[2026-06-23 07:46:30] 
+
+[
+[2026-06-23 07:47:06] 2026-06-23 07:47:06] 
+
+
+[2026-06-23 07:47:06] 
+
+[Connected to SQLite Database; API Path GET: /api/user/name
+2026-06-23 07:47:06] 
+
+[2026-06-23 07:47:06] 
+
+[2026-06-23 07:47:06] 
+
+[2026-06-23 07:47:07] 
+
+[2026-06-23 07:47:07] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-06-23 07:47:17] 
+Connected to SQLite Database; API Path PATCH: /api/features/location
+
+[2026-06-23 07:47:17] 
+
+[2026-06-23 07:47:17] 
+Connected to SQLite Database; API Path GET: /api/files/name
+
+
+[[2026-06-23 07:47:22] 
+2026-06-23 07:47:22] 
+Connected to SQLite Database; API Path GET: /api/files/filesizes
+
+[2026-06-23 07:47:22] 
+
+[2026-06-23 07:47:22] 
+Connected to SQLite Database; API Path GET: /api/files/filesizes

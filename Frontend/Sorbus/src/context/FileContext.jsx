@@ -15,17 +15,20 @@ export const FileProvider = ({children}) => {
     const [fileInfo, setFileInfo] = useState({}); //Maps full path → { size, isFolder, ext, created }
     const [currentPath, setCurrentPath] = useState([]); //For the current path for which the homepage displays
     const [uploads, setUploads] = useState([]); //Tracks in-flight uploads: { name, progress, status, error }
+    const [storageReady, setStorageReady] = useState(true); //False when storage path is not configured
 
     const refreshFiles = useCallback(() => {
         // Fetches the full file tree for the logged-in user — call this after upload/delete/rename
         if (!userId || !isLoggedIn) return; //Guard: wait for both userId and a confirmed session before firing
         axios.get(`/api/files/name/${userId}`)
             .then(res => {
-                setTree(res.data.tree);
-                setFileIds(res.data.fileIds);
-                setFileInfo(res.data.fileInfo ?? {});
+                const initialized = res.data.initialized !== false;
+                setStorageReady(initialized);
+                setTree(initialized ? res.data.tree : {});
+                setFileIds(initialized ? res.data.fileIds : {});
+                setFileInfo(initialized ? (res.data.fileInfo ?? {}) : {});
             })
-            .catch(err => console.error('Failed to fetch files:', err));
+            .catch(err => console.error('[/api/files/name]', err.response?.status ?? err.code, err.response?.data || err.message));
     }, [userId, isLoggedIn]);
 
     useEffect(() => {
@@ -70,7 +73,7 @@ export const FileProvider = ({children}) => {
     const clearUploads = useCallback(() => setUploads([]), []); //Clears the upload progress list (memoized so the toast's auto-dismiss timer stays stable)
 
     return (
-        <FileContext.Provider value={{ tree, fileIds, fileInfo, currentPath, setCurrentPath, refreshFiles, uploadFiles, uploads, clearUploads }}>
+        <FileContext.Provider value={{ tree, fileIds, fileInfo, currentPath, setCurrentPath, refreshFiles, uploadFiles, uploads, clearUploads, storageReady }}>
             {children}
         </FileContext.Provider>
     );

@@ -22,7 +22,7 @@ function getFileIcon(name) {
 }
 
 function FileView() {
-  const { tree, fileIds, fileInfo, currentPath, setCurrentPath, refreshFiles, uploadFiles } = useFileContext();
+  const { tree, fileIds, fileInfo, currentPath, setCurrentPath, refreshFiles, uploadFiles, storageReady } = useFileContext();
   const { userId } = useAccountContext();
 
   const [isDraggingFiles, setIsDraggingFiles] = useState(false); //True while external OS files are dragged over the view
@@ -341,7 +341,13 @@ function FileView() {
       )}
 
       {/* File contents */}
-      {viewMode === 'shelf' ? (
+      {!storageReady ? (
+        <div className="fv-uninitialized">
+          <span className="material-icons">folder_off</span>
+          <p className="fv-uninitialized-title">Storage path not configured</p>
+          <p className="fv-uninitialized-hint">Go to Account settings to set a storage path before using your files.</p>
+        </div>
+      ) : viewMode === 'shelf' ? (
         <ShelfView
           sortedEntries={sortedEntries}
           filteredEntries={filteredEntries}
