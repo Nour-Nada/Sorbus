@@ -1838,10 +1838,11 @@ int main(void)
 
 
         //Fallback route
-        svr.set_error_handler([](const httplib::Request& req, httplib::Response& res) { //Catches unknown routes
-            res.status = 404;
-            std::string api_error = "Endpoint not Found | or | An Uncaught Error Occurred";
-            res.set_content(api_error, "text/plain");
+        svr.set_error_handler([](const httplib::Request& req, httplib::Response& res) { //Catches unknown routes; only fires when the route set no body (true 404), not for intentional 4xx/5xx responses
+            if (res.body.empty()) {
+                res.status = 404;
+                res.set_content("Endpoint not Found | or | An Uncaught Error Occurred", "text/plain");
+            }
         });
 
 
