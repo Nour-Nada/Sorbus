@@ -2,4 +2,4 @@
 C++_Server/header_libs/** linguist-vendored
 
 # Classify React files as JSX rather than grouping them with JavaScript
-*.jsx linguist-language=JSX
+*.jsx linguist-language=JavaScript
