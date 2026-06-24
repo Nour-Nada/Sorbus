@@ -1,0 +1,19 @@
+# ── Stage 1: build React ─────────────────────────────────────────────────────
+FROM node:lts-alpine AS builder
+WORKDIR /app
+
+COPY Frontend/Sorbus/package*.json ./
+RUN npm ci
+
+COPY Frontend/Sorbus/ .
+RUN npm run build
+
+# ── Stage 2: serve via nginx ─────────────────────────────────────────────────
+FROM nginx:alpine
+
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# nginx processes this template at startup, substituting ${NODE_BACKEND_URL}
+COPY Docker/nginx.conf.template /etc/nginx/templates/default.conf.template
+
+EXPOSE 80

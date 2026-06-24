@@ -1,0 +1,33 @@
+services:
+
+  # ── Node.js API gateway ───────────────────────────────────────────────────
+  # Proxies requests between the React frontend and the C++ server on the Pi.
+  node-backend:
+    build:
+      context: ..
+      dockerfile: Docker/Dockerfile.node
+    environment:
+      - API_KEY=${API_KEY:?API_KEY must be set in .env.cloud — must match .env.local}
+      # URL of the C++ server on the Pi, reachable via Cloudflare tunnel
+      - C_Server_Route=${CPP_SERVER_URL:?CPP_SERVER_URL must be set in .env.cloud}
+      # Must match what users type in their browser (used for CORS)
+      - CORS_ORIGIN=${CORS_ORIGIN:?CORS_ORIGIN must be set in .env.cloud}
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env.cloud}
+      - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET:?REFRESH_TOKEN_SECRET must be set in .env.cloud}
+    restart: unless-stopped
+
+  # ── React frontend (nginx) ────────────────────────────────────────────────
+  # Serves the React app and proxies /api requests to node-backend.
+  frontend:
+    build:
+      context: ..
+      dockerfile: Docker/Dockerfile.react
+    environment:
+      # nginx uses this at startup to fill in the proxy_pass URL
+      - NODE_BACKEND_URL=http://node-backend:3000
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      - node-backend
+    restart: unless-stopped

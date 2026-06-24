@@ -1,0 +1,12 @@
+FROM node:lts-alpine
+WORKDIR /app
+
+# Install production dependencies only
+COPY Node_Backend/package*.json ./
+RUN npm ci --omit=dev
+
+COPY Node_Backend/index.js .
+
+EXPOSE 3000
+# Use node directly — nodemon is a dev dependency and not installed here
+CMD ["node", "index.js"]

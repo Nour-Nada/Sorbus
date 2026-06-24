@@ -1,0 +1,32 @@
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Allow large file uploads — let Node.js enforce any size limits
+    client_max_body_size 0;
+
+    # Extend timeouts for large downloads and slow uploads
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
+
+    # Stream uploads directly to Node.js without buffering into nginx first
+    proxy_request_buffering off;
+
+    # Forward all /api requests to the Node.js container
+    # NODE_BACKEND_URL is substituted at container startup from the environment
+    location /api {
+        proxy_pass ${NODE_BACKEND_URL};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # All other routes serve the React app (supports React Router client-side nav)
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

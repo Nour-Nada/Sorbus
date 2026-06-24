@@ -1,4 +1,31 @@
+# Dependencies — reinstalled inside each container
 node_modules
+**/node_modules
+
+# React build output — rebuilt inside the container
+Frontend/Sorbus/dist
+
+# Environment files — never send secrets into the build context
 .env
 .env.*
-test.js
+Docker/.env
+
+# Database — a fresh one is created on first startup by initialize_schema()
+**/*.db
+
+# Visual Studio build artifacts
+C++_Server/x64
+C++_Server/Debug
+C++_Server/Release
+**/*.obj
+**/*.pdb
+**/*.ilk
+**/*.suo
+**/*.user
+
+# Node.js dev / test files
+Node_Backend/test.js
+Node_Backend/testing_media_files
+
+# Git metadata
+.git
