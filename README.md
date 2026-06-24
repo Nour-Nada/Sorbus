@@ -27,7 +27,7 @@ The philosophy is simple: **you own your data.** Nothing lives on someone else's
 
 **Author / Credits:** Nour Nada
 
-**Contact:** `<your-email>` <!-- TODO: add your contact email here -->
+**Contact:** the3dmodelcorporation@gmail.com
 
 **Support:** If Sorbus is useful to you, consider supporting development — [Buy Me a Coffee](https://www.buymeacoffee.com/&lt;your-bmc-link&gt;) <!-- TODO: replace with your real link -->
 
@@ -38,6 +38,7 @@ The philosophy is simple: **you own your data.** Nothing lives on someone else's
 - [Features](#features)
 - [Screenshots](#screenshots)
 - [Architecture at a Glance](#architecture-at-a-glance)
+- [Recommended Setup](#recommended-setup)
 - [Deployment / Getting Started](#deployment--getting-started)
 - [Developer Guide](#developer-guide)
   - [How It All Fits Together](#how-it-all-fits-together)
@@ -50,6 +51,7 @@ The philosophy is simple: **you own your data.** Nothing lives on someone else's
   - [Key Behaviors & Gotchas](#key-behaviors--gotchas)
   - [Access Control](#access-control)
   - [Containerization Details](#containerization-details)
+- [Security Notes](#security-notes)
 - [Contributing](#contributing)
 - [Reporting Issues](#reporting-issues)
 - [License](#license)
@@ -81,30 +83,51 @@ The philosophy is simple: **you own your data.** Nothing lives on someone else's
 
 Sorbus is a **three-tier application** that is deliberately **split across two machines**:
 
-```
-                          ┌──────────────────────────────────────┐
-   Your browser  ──────►  │  CLOUD SERVER                         │
-                          │                                       │
-                          │   React (nginx)  ──►  Node.js gateway │
-                          │                            │          │
-                          └────────────────────────────┼──────────┘
-                                                        │
-                                          Cloudflare tunnel (HTTPS)
-                                                        │
-                          ┌─────────────────────────────▼─────────┐
-                          │  HOME MACHINE / RASPBERRY PI           │
-                          │                                       │
-                          │   C++ HTTP server  ──►  SQLite + files │
-                          └───────────────────────────────────────┘
+```mermaid
+flowchart TD
+    B["🌐 Your Browser"]
+
+    subgraph CLOUD["☁️ Cloud Server"]
+        direction TB
+        N["nginx<br/><i>serves the built React app<br/>+ proxies /api/* </i>"]
+        G["Node.js Gateway (Express)<br/><i>auth · rate limiting · CORS</i>"]
+        N -->|"/api/*"| G
+    end
+
+    subgraph HOME["🏠 Home Machine / Raspberry Pi"]
+        direction TB
+        C["C++ HTTP Server (cpp-httplib)"]
+        D[("SQLite metadata<br/>+ your files on disk")]
+        C --> D
+    end
+
+    B -->|HTTPS| N
+    G -->|"HTTPS via Cloudflare Tunnel"| C
 ```
 
 | Tier | Tech | Where it runs | Responsibility |
 |---|---|---|---|
-| **Frontend** | React 19 + Vite, served by nginx | Cloud server | The web UI. nginx also proxies `/api/*` to the Node gateway. |
+| **Frontend** | React 19 (built with Vite) | Cloud server | The web UI. In **production**, nginx serves the built static files and proxies `/api/*` to the gateway. During **development**, Vite's dev server serves it instead — nginx is only part of the Docker/production setup. |
 | **API Gateway** | Node.js + Express 5 | Cloud server | Auth (JWT + bcrypt), rate limiting, CORS, and proxying requests to the C++ server. |
 | **File Server** | C++ (cpp-httplib) + SQLite | Home machine / Pi | All file operations and user management, with direct filesystem access. |
 
-The Node gateway reaches the C++ server over a **Cloudflare tunnel**, so your home machine never needs an open inbound port.
+The Node gateway reaches the C++ server over a **Cloudflare tunnel**, so your home machine never needs an open inbound port or a public IP.
+
+---
+
+## Recommended Setup
+
+Sorbus is hardware- and host-agnostic, but if you're starting from scratch, here's what works well.
+
+**🏠 Home tier (file server + database).** Any always-on machine that can hold your files. A **Raspberry Pi 4 or 5** is the sweet spot — inexpensive, low-power, and more than enough for personal use. But you don't need to buy anything: an **old laptop or an unused desktop/PC** makes a great Sorbus host too — it already has a disk, and a laptop even comes with a built-in battery backup. Attach extra storage if you need it and point `STORAGE_PATH` at it.
+
+**☁️ Cloud tier (web UI + gateway).** Any small VPS that can run Docker is enough — the gateway and frontend are lightweight. <!-- TODO: add my recommended cloud provider/plan here once I've chosen one. -->
+> _Recommended provider: coming soon._
+
+**🔗 Connecting the two — Cloudflare Tunnel.** A Cloudflare Tunnel is how the cloud server reaches the C++ server at home **without exposing your home IP or opening any inbound ports**. Your home machine runs a small `cloudflared` agent that makes an **outbound-only** connection to Cloudflare's edge. You map a hostname (e.g. `cpp.yourdomain.com`) to your local C++ server, and Cloudflare securely routes traffic for that hostname back down the tunnel. That hostname becomes your `CPP_SERVER_URL`.
+
+- 📖 [Cloudflare Tunnel — overview](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+- 🚀 [Create your first tunnel (step-by-step)](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/get-started/create-remote-tunnel/)
 
 ---
 
@@ -420,6 +443,23 @@ The **first signup becomes owner**; everyone else starts as a viewer. The owner 
 
 ---
 
+## Security Notes
+
+**In plain terms (worth reading even if you're not technical):** Sorbus is *your* private cloud, which means **you** are the administrator and the security is in your hands. A few things to understand:
+
+- **Your account password is the key to everything.** If someone gets the password to an `owner` or `editor` account, they can browse, download, change, or delete the files in your storage — and an `owner` can also change the storage location and manage other users. Use a **strong, unique password**, and don't reuse it from other sites.
+- **The server can reach whatever folder you point it at.** Set `STORAGE_PATH` to a dedicated folder meant for sharing — *not* your entire drive or your home directory — so that even in a worst case the exposure is limited to that folder.
+- **Anyone with your `REGISTER_KEY` can make an account.** Treat it like a password and share it only with people you trust.
+- **Keep your host machine updated and patched.** Self-hosting means the operating system, Docker, and your Cloudflare tunnel are your responsibility to keep current.
+
+And the operational rules:
+
+- **Never expose the C++ server's port directly to the internet.** The C++ server has *no per-user authentication of its own* — it trusts any request carrying the correct `key` header. Its protection is being reachable **only** through the Cloudflare tunnel + that shared key. Keep its port firewalled and let the tunnel be the only way in.
+- **Always let `setup.sh` generate your secrets.** It creates strong random values for `API_KEY`, `JWT_SECRET`, and `REFRESH_TOKEN_SECRET`. Never ship the default `dev-key-change-me` API key, and never reuse the same value for the two JWT secrets.
+- **Set a strong `REGISTER_KEY`.** It's the only thing stopping strangers from creating accounts. Share it only with people you want to have access.
+- **Keep `.env.local` and `.env.cloud` out of version control.** They hold your secrets and are git-ignored by default — keep them that way.
+- **Serve everything over HTTPS.** Refresh-token cookies are marked `Secure` in production; the Cloudflare tunnel and your cloud host should both terminate TLS.
+
 ## Contributing
 
 Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for how to fork, branch, and open a pull request. A quick note on code style for the C++ and Node files: **every function gets a one-line comment** describing what it does, and multi-line comment blocks are avoided.
@@ -436,7 +476,7 @@ Released under the [MIT License](LICENSE). © Nour Nada.
 
 ## Support the Project
 
-If Sorbus saves you a subscription or just makes your life easier, consider supporting development:
+If Sorbus saves you a subscription or just makes your life easier, consider supporting me:
 
 <!-- TODO: replace <your-bmc-link> with your real Buy Me a Coffee link -->
 ☕ [Buy Me a Coffee](https://www.buymeacoffee.com/&lt;your-bmc-link&gt;)

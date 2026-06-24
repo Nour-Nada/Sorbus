@@ -19,7 +19,10 @@ Sorbus is a self-hosted personal cloud storage system. Users run the C++ server 
 ## Code Style
 
 - Every new function must have a one-line comment describing what it does.
-- No multi-line comment blocks.
+- No multi-line comment blocks. A single short inline comment is fine for a non-obvious line.
+- Match the existing style of the file you're editing — naming, spacing, and structure should be indistinguishable from the surrounding code. The C++ server and Node gateway are each a single file; keep them that way unless there's a strong reason not to.
+- Keep code minimal. Prefer the smallest change that solves the problem. Avoid typical AI-generated bloat: no needless abstractions, wrapper layers, defensive try/catch around things that can't fail, redundant variables, or over-commenting. Don't restate what the code already says.
+- Don't add dependencies for things the standard library or existing vendored libraries already do.
 
 ---
 
@@ -101,7 +104,7 @@ server_info — singleton row (id=1): server_status, register_key, file_location
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `FILEAPP_API_KEY` | No | `dev-key-change-me` | Shared secret checked on every request. Prints WARNING if using default but still starts. |
+| `FILEAPP_API_KEY` | **Yes** | — | Shared secret checked on every request. Server calls `std::exit(1)` if not set (no default). |
 | `FILEAPP_REGISTER_KEY` | **Yes** | — | Written to DB on startup. Server calls `std::exit(1)` if not set. |
 | `FILEAPP_FILE_LOCATION` | No | `""` | Storage path. Empty = not configured. Set via Account page after first boot. |
 | `FILEAPP_DB_PATH` | No | `sorbus.db` | Path to SQLite database file. |
