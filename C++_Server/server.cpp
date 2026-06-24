@@ -89,6 +89,23 @@ void initialize_file_location() { //Loads the file storage location from the dat
     }
 }
 
+void initialize_register_key() { //Reads FILEAPP_REGISTER_KEY env var and writes it to the database — exits if not set
+    const char* reg_key = std::getenv("FILEAPP_REGISTER_KEY");
+    if (!reg_key || !*reg_key) {
+        std::cerr << "FATAL: FILEAPP_REGISTER_KEY environment variable is not set. Server will not start." << std::endl;
+        std::exit(1);
+    }
+    try {
+        SQLite::Database db = openDB();
+        SQLite::Statement stmt(db, "UPDATE server_info SET register_key = ? WHERE id = 1");
+        stmt.bind(1, reg_key);
+        stmt.exec();
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to set register key: " << e.what() << std::endl;
+        std::exit(1);
+    }
+}
+
 void initialize_file_count() { //Sets current_file_count to the number of files in the database excluding folders
     try {
         SQLite::Database db = openDB();
@@ -280,9 +297,10 @@ int main(void)
         std::cerr << "WARNING: FILEAPP_API_KEY not set. Using default dev key — do not use in production.\n";
     }
 
-    initialize_schema();       //Creates SQLite tables on first run, safe to call every startup
-    initialize_file_location(); //Loads the file storage location from the database before accepting requests
-    initialize_file_count(); //Loads the current file count from the database before the server starts accepting requests
+    initialize_schema();         //Creates SQLite tables on first run, safe to call every startup
+    initialize_register_key();   //Writes FILEAPP_REGISTER_KEY env var into the database if set
+    initialize_file_location();  //Loads the file storage location from the database before accepting requests
+    initialize_file_count();     //Loads the current file count from the database before the server starts accepting requests
 
     //Opens up the file to which the output will be redirected
     std::ofstream logFile(OUTPUT_FILE, std::ios::app);
