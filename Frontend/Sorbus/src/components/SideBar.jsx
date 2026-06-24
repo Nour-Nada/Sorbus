@@ -1,3 +1,11 @@
+// ============================================================
+//   ___  ___  ____  ____  _   _  ___
+//  / __)/ _ \(  _ \(  _ )/ ) ( \/ __)
+//  \__ \ (_) ))   / ) _ (\ \/ / \__ \
+//  (___/\___/(_)\_)(____/ \__/  (___/
+//
+// Self-Hosted Personal Cloud Storage — MIT License
+// ============================================================
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAccountContext } from '../context/AccountContext.jsx';

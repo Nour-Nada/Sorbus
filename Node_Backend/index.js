@@ -1,3 +1,11 @@
+// ============================================================
+//   ___  ___  ____  ____  _   _  ___
+//  / __)/ _ \(  _ \(  _ )/ ) ( \/ __)
+//  \__ \ (_) ))   / ) _ (\ \/ / \__ \
+//  (___/\___/(_)\_)(____/ \__/  (___/
+//
+// Self-Hosted Personal Cloud Storage — MIT License
+// ============================================================
 import express, { response } from "express";
 import axios from "axios";
 import dotenv from "dotenv";
