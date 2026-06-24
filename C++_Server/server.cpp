@@ -41,8 +41,8 @@ httplib::Server svr;
 //Global Variables
 const std::string API_KEY = []() {
     const char* value = std::getenv("FILEAPP_API_KEY");
-    return (value && *value) ? std::string(value) : "dev-key-change-me";
-}(); //The API key — set via FILEAPP_API_KEY env var, falls back to dev default if not set
+    return (value && *value) ? std::string(value) : "";
+}(); //The API key — set via the FILEAPP_API_KEY env var; empty if not set (no default)
 const std::string OUTPUT_FILE = "server_output.txt"; //Where the print statements, errors, and more gets outputted to in deployment
 
 std::shared_mutex FILE_LOCATION_MUTEX; //Mutex to protect the file location string from concurrent read/write access across threads
@@ -302,7 +302,7 @@ void reinitialize_files(SQLite::Database &db, int user_id) { //Reinitializes the
 int main(void)
 {
     if (API_KEY.empty()) {
-        std::cerr << "WARNING: FILEAPP_API_KEY not set. Using default dev key — do not use in production.\n";
+        std::cerr << "WARNING: FILEAPP_API_KEY is not set — all requests will be rejected. Set it via your .env file.\n";
     }
 
     initialize_schema();         //Creates SQLite tables on first run, safe to call every startup

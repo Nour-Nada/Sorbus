@@ -455,7 +455,7 @@ The **first signup becomes owner**; everyone else starts as a viewer. The owner 
 And the operational rules:
 
 - **Never expose the C++ server's port directly to the internet.** The C++ server has *no per-user authentication of its own* — it trusts any request carrying the correct `key` header. Its protection is being reachable **only** through the Cloudflare tunnel + that shared key. Keep its port firewalled and let the tunnel be the only way in.
-- **Always let `setup.sh` generate your secrets.** It creates strong random values for `API_KEY`, `JWT_SECRET`, and `REFRESH_TOKEN_SECRET`. Never ship the default `dev-key-change-me` API key, and never reuse the same value for the two JWT secrets.
+- **Always let `setup.sh` generate your secrets.** It creates strong random values for `API_KEY`, `JWT_SECRET`, and `REFRESH_TOKEN_SECRET`. There is no default key anywhere — an empty value is rejected at startup — so you can't accidentally run with a weak placeholder. Never reuse the same value for the two JWT secrets.
 - **Set a strong `REGISTER_KEY`.** It's the only thing stopping strangers from creating accounts. Share it only with people you want to have access.
 - **Keep `.env.local` and `.env.cloud` out of version control.** They hold your secrets and are git-ignored by default — keep them that way.
 - **Serve everything over HTTPS.** Refresh-token cookies are marked `Secure` in production; the Cloudflare tunnel and your cloud host should both terminate TLS.

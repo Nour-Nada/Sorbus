@@ -20,6 +20,14 @@ const app = express();
 const port = process.env.PORT || 3000;
 dotenv.config();
 
+// Fail fast if any required environment variable is missing (Docker Compose guards these too, but this protects non-Docker runs)
+const REQUIRED_ENV = ['API_KEY', 'C_Server_Route', 'JWT_SECRET', 'REFRESH_TOKEN_SECRET', 'CORS_ORIGIN'];
+const missingEnv = REQUIRED_ENV.filter(name => !process.env[name]);
+if (missingEnv.length) {
+	console.error(`FATAL: missing required environment variables: ${missingEnv.join(', ')}`);
+	process.exit(1);
+}
+
 const limiter = rateLimit({ //The variable to set the rate limits
 	windowMs: 5 * 60 * 1000, // 5 minutes
 	limit: 100, // Limit each IP to 100 requests per `window` (here, per 5 minutes).

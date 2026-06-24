@@ -104,7 +104,7 @@ server_info — singleton row (id=1): server_status, register_key, file_location
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `FILEAPP_API_KEY` | **Yes** | — | Shared secret checked on every request. Server calls `std::exit(1)` if not set (no default). |
+| `FILEAPP_API_KEY` | **Yes** | — | Shared secret checked on every request. No default — empty if unset (Docker Compose's `${API_KEY:?}` guard refuses to start on empty; the server also logs a warning). |
 | `FILEAPP_REGISTER_KEY` | **Yes** | — | Written to DB on startup. Server calls `std::exit(1)` if not set. |
 | `FILEAPP_FILE_LOCATION` | No | `""` | Storage path. Empty = not configured. Set via Account page after first boot. |
 | `FILEAPP_DB_PATH` | No | `sorbus.db` | Path to SQLite database file. |
