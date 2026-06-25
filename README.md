@@ -27,7 +27,7 @@ The philosophy is simple: **you own your data.** Nothing lives on someone else's
 
 **Author / Credits:** Nour Nada
 
-**Contact:** the3dmodelcorporation@gmail.com
+**Contact:** nour.nada.dev@gmail.com
 
 **Support:** If Sorbus is useful to you, consider supporting development — [Buy Me a Coffee](https://www.buymeacoffee.com/&lt;your-bmc-link&gt;) <!-- TODO: replace with your real link -->
 
