@@ -33,6 +33,8 @@ function Account() {
   const [pathFeedback, setPathFeedback] = useState(null);  // { ok, msg }
   const [confirmReinit, setConfirmReinit] = useState(false);
   const pathInputRef = useRef(null);
+  const [loading, setLoading] = useState(true); //True while the initial account data loads
+  const [pathBusy, setPathBusy] = useState(false); //True while a storage-path change is indexing
 
   useEffect(() => {
     // Verify session and load all page data on mount
@@ -53,7 +55,8 @@ function Account() {
       setStorageFree(freeRes.data);
       setStorageUsed(usedRes.data);
       setSavedPath(locationRes.data || '');
-    }).catch(err => console.error('Failed to load account data:', err));
+    }).catch(err => console.error('Failed to load account data:', err))
+      .finally(() => setLoading(false));
   }, [userId]);
 
   const formatBytes = (bytes) => {
@@ -102,17 +105,22 @@ function Account() {
   };
 
   const handlePathChange = async () => {
+    const previousPath = savedPath;
+    setSavedPath(editPath); //Optimistically show the new path right away
+    setPathEditing(false);
+    setConfirmPath(false);
+    setPathBusy(true);
+    setPathFeedback({ ok: true, msg: 'Indexing… this may take a while for large folders.' });
     try {
       await axios.patch(`/api/features/location/${userId}`, { new_location: editPath });
-      setSavedPath(editPath);
-      setPathEditing(false);
-      setConfirmPath(false);
       setPathFeedback({ ok: true, msg: 'Path updated.' });
       refreshServerPath();
       refreshFiles();
     } catch (err) {
-      setConfirmPath(false);
+      setSavedPath(previousPath); //Revert the optimistic path on failure
       setPathFeedback({ ok: false, msg: friendlyPathError(err.response?.data) });
+    } finally {
+      setPathBusy(false);
     }
   };
 
@@ -146,6 +154,12 @@ function Account() {
       </div>
 
       <div className="ac-body">
+        {loading && (
+          <div className="ac-loading-banner">
+            <div className="ac-spinner" />
+            <span>Loading account data…</span>
+          </div>
+        )}
         {/* Box 1: Users */}
         <div className="ac-box">
           <h2 className="ac-box-title">
@@ -247,7 +261,7 @@ function Account() {
                       <button className="ac-btn" onClick={() => { setPathEditing(false); setConfirmPath(false); setPathFeedback(null); }}>Cancel</button>
                     </>
                   ) : (
-                    <button className="ac-btn" onClick={() => { setPathEditing(true); setEditPath(savedPath); setPathFeedback(null); }}>Edit</button>
+                    <button className="ac-btn" disabled={pathBusy} onClick={() => { setPathEditing(true); setEditPath(savedPath); setPathFeedback(null); }}>Edit</button>
                   )}
                 </div>
                 {confirmPath && (

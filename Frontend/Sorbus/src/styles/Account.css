@@ -430,6 +430,29 @@
 .ac-ok { color: #4caf80; }
 .ac-err { color: #e05555; }
 
+/* Loading indicator while account data is being fetched */
+.ac-loading-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: #6a7a90;
+  padding: 4px 2px 8px;
+}
+
+.ac-spinner {
+  width: 18px;
+  height: 18px;
+  border: 3px solid #25323f;
+  border-top-color: #4a7fb5;
+  border-radius: 50%;
+  animation: ac-spin 0.8s linear infinite;
+}
+
+@keyframes ac-spin {
+  to { transform: rotate(360deg); }
+}
+
 @media (max-width: 768px) {
   .ac-page {
     height: 100%;

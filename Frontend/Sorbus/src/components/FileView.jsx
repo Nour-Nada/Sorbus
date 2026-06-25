@@ -30,7 +30,7 @@ function getFileIcon(name) {
 }
 
 function FileView() {
-  const { tree, fileIds, fileInfo, currentPath, setCurrentPath, refreshFiles, uploadFiles, storageReady } = useFileContext();
+  const { tree, fileIds, fileInfo, currentPath, setCurrentPath, refreshFiles, uploadFiles, storageReady, filesLoading } = useFileContext();
   const { userId } = useAccountContext();
 
   const [isDraggingFiles, setIsDraggingFiles] = useState(false); //True while external OS files are dragged over the view
@@ -59,6 +59,8 @@ function FileView() {
   };
 
   const currentDir = getCurrentDir();
+
+  const isLoadingFiles = (filesLoading || storageReady === null) && Object.keys(tree).length === 0; //Show a spinner only when there's nothing to display yet
 
   const filteredEntries = Object.entries(currentDir).filter(([name]) =>
     name.toLowerCase().includes(search.toLowerCase())
@@ -349,7 +351,12 @@ function FileView() {
       )}
 
       {/* File contents */}
-      {!storageReady ? (
+      {isLoadingFiles ? (
+        <div className="fv-loading">
+          <div className="fv-spinner" />
+          <p className="fv-loading-text">Loading your files…</p>
+        </div>
+      ) : !storageReady ? (
         <div className="fv-uninitialized">
           <span className="material-icons">folder_off</span>
           <p className="fv-uninitialized-title">Storage path not configured</p>

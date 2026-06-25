@@ -1834,6 +1834,8 @@ int main(void)
                     return;
                 }
 
+                std::string old_file_location = get_file_location(); //Saved so it can be restored if re-indexing fails
+                int old_file_count = current_file_count.load(); //Saved so it can be restored if re-indexing fails
                 set_file_location(new_path.string()); //changes the base file location
                 SQLite::Statement updateLoc(DB_Connection, "UPDATE server_info SET file_location = ? WHERE id = 1");
                 updateLoc.bind(1, new_path.string());
@@ -1843,9 +1845,12 @@ int main(void)
                     reinitialize_files(DB_Connection, user_id_int); //re-indexes all files from the new path
                 }
                 catch (const std::exception& e) {
+                    set_file_location(old_file_location); //Restore previous state; returning without commit rolls back the DB changes
+                    current_file_count = old_file_count;
                     res.status = 500;
                     std::cout << e.what() << std::endl;
                     res.set_content(e.what(), "text/plain");
+                    return; //Returns before commit so the failed re-index and location update are discarded
                 }
 
                 DB_Open_Connection.commit();
