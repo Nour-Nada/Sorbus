@@ -30,72 +30,46 @@ function getFileIcon(name) {
 }
 
 function FileView() {
-  const { tree, fileIds, fileInfo, currentPath, setCurrentPath, refreshFiles, uploadFiles, storageReady, filesLoading } = useFileContext();
+  const { folderCache, loadFolder, invalidateFolder, currentPath, setCurrentPath, uploadFiles, storageReady, filesLoading } = useFileContext();
   const { userId } = useAccountContext();
 
-  const [isDraggingFiles, setIsDraggingFiles] = useState(false); //True while external OS files are dragged over the view
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
 
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState('ledger');
-  const [contextMenu, setContextMenu] = useState(null);
-  const [draggedItem, setDraggedItem] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null); // { x, y, name, id, isFolder }
+  const [draggedItem, setDraggedItem] = useState(null); // { name, id, isFolder }
   const [dragOverFolder, setDragOverFolder] = useState(null);
   const [sortField, setSortField] = useState('name');
   const [sortDir, setSortDir] = useState('asc');
-  const [selectedItems, setSelectedItems] = useState(new Set());
+  const [selectedItems, setSelectedItems] = useState(new Set()); // Set of item names
   const [batchDeleteModal, setBatchDeleteModal] = useState(false);
-  const [moveModal, setMoveModal] = useState(null); // { items: [{name, node, isFolder}] }
+  const [moveModal, setMoveModal] = useState(null); // { items: [{ name, id, isFolder }] }
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
 
-  const getCurrentDir = () => {
-    // Walks the tree along currentPath to return the active folder's contents
-    let dir = tree;
-    for (const segment of currentPath) {
-      if (dir[segment] && typeof dir[segment] === 'object') dir = dir[segment];
-      else return {};
-    }
-    return dir;
-  };
+  const currentPathStr = currentPath.join('/');
+  const currentItems = folderCache[currentPathStr] ?? []; // flat array of { id, name, isFolder, size, ext }
 
-  const currentDir = getCurrentDir();
+  const isLoadingFiles = (filesLoading || storageReady === null) && currentItems.length === 0;
 
-  const isLoadingFiles = (filesLoading || storageReady === null) && Object.keys(tree).length === 0; //Show a spinner only when there's nothing to display yet
-
-  const filteredEntries = Object.entries(currentDir).filter(([name]) =>
-    name.toLowerCase().includes(search.toLowerCase())
+  const filteredItems = currentItems.filter(item =>
+    item.name.toLowerCase().includes(search.toLowerCase())
   );
 
   const handleSort = (field) => {
-    // Toggles direction when clicking the active column; switches to asc when picking a new one
+    // Toggles direction on the active column; resets to asc on a new column
     if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortField(field); setSortDir('asc'); }
   };
 
-  const getItemSize = (name, node) => {
-    // Returns raw bytes for a file, or the recursive total of all files inside a folder
-    if (typeof node === 'string') return fileInfo[node]?.size ?? -1;
-    const prefix = [...currentPath, name].join('/') + '/';
-    return Object.entries(fileInfo).reduce((sum, [path, info]) => {
-      return (path.startsWith(prefix) && !info.isFolder && info.size >= 0) ? sum + info.size : sum;
-    }, 0);
-  };
-
-  const sortedEntries = [...filteredEntries].sort(([nameA, nodeA], [nameB, nodeB]) => {
-    // Folders always sort before files regardless of sort field; within each group sort by active field
-    const aIsFolder = nodeA !== null && typeof nodeA === 'object';
-    const bIsFolder = nodeB !== null && typeof nodeB === 'object';
-    if (aIsFolder !== bIsFolder) return aIsFolder ? -1 : 1;
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    // Folders always before files; within each group sort by active field
+    if (a.isFolder !== b.isFolder) return a.isFolder ? -1 : 1;
     let cmp = 0;
-    if (sortField === 'name') {
-      cmp = nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
-    } else if (sortField === 'type') {
-      const typeA = aIsFolder ? '' : (fileInfo[nodeA]?.ext ?? '');
-      const typeB = bIsFolder ? '' : (fileInfo[nodeB]?.ext ?? '');
-      cmp = typeA.localeCompare(typeB);
-    } else if (sortField === 'size') {
-      cmp = getItemSize(nameA, nodeA) - getItemSize(nameB, nodeB);
-    }
+    if (sortField === 'name') cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    else if (sortField === 'type') cmp = a.ext.localeCompare(b.ext);
+    else if (sortField === 'size') cmp = a.size - b.size;
     return sortDir === 'asc' ? cmp : -cmp;
   });
 
@@ -107,17 +81,20 @@ function FileView() {
   };
 
   const openFolder = (name) => {
-    // Navigates into a subfolder and clears search and selection
-    setCurrentPath([...currentPath, name]);
+    // Navigates into a subfolder, loading it if not yet cached
+    const newPath = [...currentPath, name];
+    const newPathStr = newPath.join('/');
+    setCurrentPath(newPath);
     setSearch('');
     setSelectedItems(new Set());
+    loadFolder(newPathStr);
   };
 
-  const openContextMenu = (e, name, node) => {
+  const openContextMenu = (e, item) => {
     // Opens the right-click context menu at the cursor position
     e.preventDefault();
     e.stopPropagation();
-    setContextMenu({ x: e.clientX, y: e.clientY, name, node, isFolder: node !== null && typeof node === 'object' });
+    setContextMenu({ x: e.clientX, y: e.clientY, name: item.name, id: item.id, isFolder: item.isFolder });
   };
 
   const toggleSelect = (name) => {
@@ -132,102 +109,91 @@ function FileView() {
   const startMove = (items) => setMoveModal({ items });
 
   const handleCreateFolder = async (name) => {
-    // Calls the create API if a name was given; silently cancels on empty input
+    // Creates a new folder in the current directory then reloads the folder
     setCreatingFolder(false);
     setNewFolderName('');
     if (!name.trim()) return;
     try {
       await axios.post(`/api/files/create/${userId}`, {
         new_name: name.trim(),
-        folder_path: currentPath.join('/'),
+        folder_path: currentPathStr,
       });
-      refreshFiles();
+      invalidateFolder(currentPathStr);
+      loadFolder(currentPathStr);
     } catch (err) { console.error('Failed to create folder:', err); }
   };
 
   const handleMoveSubmit = async (newParent) => {
-    // Moves all modal items to newParent concurrently then refreshes
-    if (newParent === currentPath.join('/')) { setMoveModal(null); setSelectedItems(new Set()); return; }
-    await Promise.allSettled(moveModal.items.map(async item => {
-      if (item.isFolder) {
-        const folderId = fileIds[[...currentPath, item.name].join('/')];
-        if (!folderId) return;
-        await axios.patch(`/api/files/move/${folderId}/${userId}`, { new_location: newParent });
-      } else {
-        const fileId = fileIds[item.node];
-        if (!fileId) return;
-        await axios.patch(`/api/files/move/${fileId}/${userId}`, { new_location: newParent });
-      }
-    }));
-    refreshFiles();
+    // Moves all modal items to newParent then reloads the source folder
+    if (newParent === currentPathStr) { setMoveModal(null); setSelectedItems(new Set()); return; }
+    await Promise.allSettled(moveModal.items.map(item =>
+      axios.patch(`/api/files/move/${item.id}/${userId}`, { new_location: newParent })
+    ));
+    invalidateFolder(currentPathStr);
+    invalidateFolder(newParent);
+    loadFolder(currentPathStr);
     setMoveModal(null);
     setSelectedItems(new Set());
   };
 
   const handleBatchDelete = async () => {
-    // Deletes all selected items concurrently; uses allSettled so partial failures still refresh the tree
-    const results = await Promise.allSettled([...selectedItems].map(async name => {
-      const node = currentDir[name];
-      const isFolder = node !== null && typeof node === 'object';
-      const id = isFolder ? fileIds[[...currentPath, name].join('/')] : fileIds[node];
-      if (!id) return;
-      await axios.delete(`/api/files/delete/${id}/${userId}`);
+    // Deletes all selected items then reloads the current folder
+    const results = await Promise.allSettled([...selectedItems].map(name => {
+      const item = currentItems.find(i => i.name === name);
+      if (!item) return Promise.resolve();
+      return axios.delete(`/api/files/delete/${item.id}/${userId}`);
     }));
     const failed = results.filter(r => r.status === 'rejected').length;
     if (failed > 0) console.error(`${failed} of ${selectedItems.size} items failed to delete`);
-    refreshFiles();
+    invalidateFolder(currentPathStr);
+    loadFolder(currentPathStr);
     setSelectedItems(new Set());
     setBatchDeleteModal(false);
   };
 
   const handleDrop = async (targetFolderName) => {
-    // Moves the dragged item into the target folder; if it's part of a selection, moves all selected items
+    // Moves the dragged item (or full selection) into a target folder within the current directory
     if (!draggedItem || draggedItem.name === targetFolderName) { setDraggedItem(null); setDragOverFolder(null); return; }
     const newParent = [...currentPath, targetFolderName].join('/');
     const isMultiMove = selectedItems.size > 1 && selectedItems.has(draggedItem.name);
     const itemsToMove = isMultiMove
       ? [...selectedItems]
           .filter(name => name !== targetFolderName)
-          .map(name => ({ name, node: currentDir[name], isFolder: currentDir[name] !== null && typeof currentDir[name] === 'object' }))
+          .map(name => currentItems.find(i => i.name === name))
+          .filter(Boolean)
       : [draggedItem];
     try {
-      await Promise.all(itemsToMove.map(async item => {
-        if (item.isFolder) {
-          const folderId = fileIds[[...currentPath, item.name].join('/')];
-          if (!folderId) return;
-          await axios.patch(`/api/files/move/${folderId}/${userId}`, { new_location: newParent });
-        } else {
-          const fileId = fileIds[item.node];
-          if (!fileId) return;
-          await axios.patch(`/api/files/move/${fileId}/${userId}`, { new_location: newParent });
-        }
-      }));
-      refreshFiles();
+      await Promise.all(itemsToMove.map(item =>
+        axios.patch(`/api/files/move/${item.id}/${userId}`, { new_location: newParent })
+      ));
+      invalidateFolder(currentPathStr);
+      invalidateFolder(newParent);
+      loadFolder(currentPathStr);
       if (isMultiMove) setSelectedItems(new Set());
     } catch (err) { console.error('Move failed:', err); }
     setDraggedItem(null);
     setDragOverFolder(null);
   };
 
-  const dragProps = (name, node, isFolder) => ({
+  const dragProps = (item) => ({
     // Returns drag event handlers for a file/folder row
     draggable: true,
-    onDragStart: () => setDraggedItem({ name, node, isFolder }),
+    onDragStart: () => setDraggedItem(item),
     onDragEnd: () => { setDraggedItem(null); setDragOverFolder(null); },
-    ...(isFolder && {
-      onDragOver: e => { e.preventDefault(); setDragOverFolder(name); },
+    ...(item.isFolder && {
+      onDragOver: e => { e.preventDefault(); setDragOverFolder(item.name); },
       onDragLeave: () => setDragOverFolder(null),
-      onDrop: () => handleDrop(name),
+      onDrop: () => handleDrop(item.name),
     }),
   });
 
   const handleFileDragOver = (e) => {
-    // Shows the upload overlay only when dragging external OS files (not internal item moves)
+    // Shows the upload overlay only when dragging external OS files
     if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setIsDraggingFiles(true); }
   };
 
   const handleFileDragLeave = (e) => {
-    // Hides the overlay only when the cursor actually leaves the view, not when entering a child
+    // Hides the overlay only when the cursor actually leaves the view, not a child element
     if (!e.currentTarget.contains(e.relatedTarget)) setIsDraggingFiles(false);
   };
 
@@ -237,15 +203,10 @@ function FileView() {
     setIsDraggingFiles(false);
   };
 
-  // Paths of folders being moved — excluded from the tree so you can't move a folder into itself or its descendants
-  const moveExcludePaths = moveModal ? new Set(
-    moveModal.items
-      .filter(i => i.isFolder)
-      .flatMap(i => {
-        const p = [...currentPath, i.name].join('/');
-        return [p, ...Object.keys(fileIds).filter(k => k.startsWith(p + '/'))];
-      })
-  ) : null;
+  // Paths of folders being moved — excluded from the move tree to prevent moving a folder into itself
+  const moveExcludePaths = moveModal
+    ? new Set(moveModal.items.filter(i => i.isFolder).map(i => [...currentPath, i.name].join('/')))
+    : null;
 
   return (
     <div
@@ -340,7 +301,7 @@ function FileView() {
           <button className="fv-sel-btn fv-sel-danger" onClick={() => setBatchDeleteModal(true)}>
             <span className="material-icons">delete_outline</span>Delete
           </button>
-          <button className="fv-sel-btn" onClick={() => startMove([...selectedItems].map(n => ({ name: n, node: currentDir[n], isFolder: currentDir[n] !== null && typeof currentDir[n] === 'object' })))}>
+          <button className="fv-sel-btn" onClick={() => startMove([...selectedItems].map(n => currentItems.find(i => i.name === n)).filter(Boolean))}>
             <span className="material-icons">drive_file_move_outline</span>Move
           </button>
           <span className="fv-sel-hint">Drag any selected item to move all</span>
@@ -364,8 +325,8 @@ function FileView() {
         </div>
       ) : viewMode === 'shelf' ? (
         <ShelfView
-          sortedEntries={sortedEntries}
-          filteredEntries={filteredEntries}
+          sortedItems={sortedItems}
+          filteredItems={filteredItems}
           search={search}
           dragOverFolder={dragOverFolder}
           openFolder={openFolder}
@@ -382,8 +343,8 @@ function FileView() {
         />
       ) : (
         <LedgerView
-          sortedEntries={sortedEntries}
-          filteredEntries={filteredEntries}
+          sortedItems={sortedItems}
+          filteredItems={filteredItems}
           search={search}
           dragOverFolder={dragOverFolder}
           openFolder={openFolder}
@@ -436,7 +397,7 @@ function FileView() {
                 Home
               </button>
               <div className="fv-move-tree-divider" />
-              <FolderTree tree={tree} onSelect={handleMoveSubmit} excludePaths={moveExcludePaths} />
+              <FolderTree onSelect={handleMoveSubmit} excludePaths={moveExcludePaths} />
             </div>
             <div className="fv-modal-actions">
               <button className="fv-modal-cancel" onClick={() => setMoveModal(null)}>Cancel</button>

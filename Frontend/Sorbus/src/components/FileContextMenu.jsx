@@ -12,8 +12,8 @@ import { useFileContext } from '../context/FileContext.jsx';
 import { useAccountContext } from '../context/AccountContext.jsx';
 
 function FileContextMenu({ contextMenu, setContextMenu, openFolder, onMoveStart }) {
-  // Positioned right-click menu with its own rename and delete modal handling
-  const { fileIds, currentPath, refreshFiles } = useFileContext();
+  // Positioned right-click menu; contextMenu = { x, y, name, id, isFolder }
+  const { currentPath, invalidateFolder, loadFolder } = useFileContext();
   const { userId } = useAccountContext();
   const [renameModal, setRenameModal] = useState(null);
   const [renameValue, setRenameValue] = useState('');
@@ -42,42 +42,36 @@ function FileContextMenu({ contextMenu, setContextMenu, openFolder, onMoveStart 
     } catch (err) { console.error('Download failed:', err); }
   };
 
-  const handleDownload = async (name, node) => {
+  const handleDownload = async (name, id) => {
     // Downloads a file via signed token
-    const fileId = fileIds[node];
-    if (fileId) await triggerDownload(fileId, name);
+    await triggerDownload(id, name);
   };
 
-  const handleFolderDownload = async (name) => {
+  const handleFolderDownload = async (name, id) => {
     // Downloads a folder as a zip via signed token
-    const folderId = fileIds[[...currentPath, name].join('/')];
-    if (folderId) await triggerDownload(folderId, name + '.zip');
+    await triggerDownload(id, name + '.zip');
   };
 
   const handleRenameSubmit = async () => {
-    // Submits the rename to the API and refreshes the file tree
+    // Submits the rename and reloads the current folder
     if (!renameModal || !renameValue.trim()) return;
-    const id = renameModal.isFolder
-      ? fileIds[[...currentPath, renameModal.name].join('/')]
-      : fileIds[renameModal.node];
-    if (!id) return;
     try {
-      await axios.patch(`/api/files/name/${id}/${userId}`, { new_name: renameValue.trim() });
-      refreshFiles();
+      await axios.patch(`/api/files/name/${renameModal.id}/${userId}`, { new_name: renameValue.trim() });
+      const pathStr = currentPath.join('/');
+      invalidateFolder(pathStr);
+      loadFolder(pathStr);
       setRenameModal(null);
     } catch (err) { console.error('Rename failed:', err); }
   };
 
   const handleDelete = async () => {
-    // Deletes the file or folder (server cascades folder deletes) and refreshes
+    // Deletes the file or folder and reloads the current folder
     if (!deleteModal) return;
-    const id = deleteModal.isFolder
-      ? fileIds[[...currentPath, deleteModal.name].join('/')]
-      : fileIds[deleteModal.node];
-    if (!id) return;
     try {
-      await axios.delete(`/api/files/delete/${id}/${userId}`);
-      refreshFiles();
+      await axios.delete(`/api/files/delete/${deleteModal.id}/${userId}`);
+      const pathStr = currentPath.join('/');
+      invalidateFolder(pathStr);
+      loadFolder(pathStr);
       setDeleteModal(null);
     } catch (err) { console.error('Delete failed:', err); }
   };
@@ -95,33 +89,33 @@ function FileContextMenu({ contextMenu, setContextMenu, openFolder, onMoveStart 
               <button className="fv-ctx-item" onClick={() => { openFolder(contextMenu.name); setContextMenu(null); }}>
                 <span className="material-icons">folder_open</span>Open
               </button>
-              <button className="fv-ctx-item" onClick={() => { handleFolderDownload(contextMenu.name); setContextMenu(null); }}>
+              <button className="fv-ctx-item" onClick={() => { handleFolderDownload(contextMenu.name, contextMenu.id); setContextMenu(null); }}>
                 <span className="material-icons">download</span>Download
               </button>
-              <button className="fv-ctx-item" onClick={() => { setRenameValue(contextMenu.name); setRenameModal({ name: contextMenu.name, node: contextMenu.node, isFolder: true }); setContextMenu(null); }}>
+              <button className="fv-ctx-item" onClick={() => { setRenameValue(contextMenu.name); setRenameModal({ name: contextMenu.name, id: contextMenu.id, isFolder: true }); setContextMenu(null); }}>
                 <span className="material-icons">drive_file_rename_outline</span>Rename
               </button>
-              <button className="fv-ctx-item" onClick={() => { onMoveStart([{ name: contextMenu.name, node: contextMenu.node, isFolder: true }]); setContextMenu(null); }}>
+              <button className="fv-ctx-item" onClick={() => { onMoveStart([{ id: contextMenu.id, name: contextMenu.name, isFolder: true }]); setContextMenu(null); }}>
                 <span className="material-icons">drive_file_move_outline</span>Move to
               </button>
               <div className="fv-ctx-divider" />
-              <button className="fv-ctx-item fv-ctx-danger" onClick={() => { setDeleteModal({ name: contextMenu.name, node: contextMenu.node, isFolder: true }); setContextMenu(null); }}>
+              <button className="fv-ctx-item fv-ctx-danger" onClick={() => { setDeleteModal({ name: contextMenu.name, id: contextMenu.id, isFolder: true }); setContextMenu(null); }}>
                 <span className="material-icons">delete_outline</span>Delete
               </button>
             </>
           ) : (
             <>
-              <button className="fv-ctx-item" onClick={() => { handleDownload(contextMenu.name, contextMenu.node); setContextMenu(null); }}>
+              <button className="fv-ctx-item" onClick={() => { handleDownload(contextMenu.name, contextMenu.id); setContextMenu(null); }}>
                 <span className="material-icons">download</span>Download
               </button>
-              <button className="fv-ctx-item" onClick={() => { setRenameValue(contextMenu.name); setRenameModal({ name: contextMenu.name, node: contextMenu.node }); setContextMenu(null); }}>
+              <button className="fv-ctx-item" onClick={() => { setRenameValue(contextMenu.name); setRenameModal({ name: contextMenu.name, id: contextMenu.id, isFolder: false }); setContextMenu(null); }}>
                 <span className="material-icons">drive_file_rename_outline</span>Rename
               </button>
-              <button className="fv-ctx-item" onClick={() => { onMoveStart([{ name: contextMenu.name, node: contextMenu.node, isFolder: false }]); setContextMenu(null); }}>
+              <button className="fv-ctx-item" onClick={() => { onMoveStart([{ id: contextMenu.id, name: contextMenu.name, isFolder: false }]); setContextMenu(null); }}>
                 <span className="material-icons">drive_file_move_outline</span>Move to
               </button>
               <div className="fv-ctx-divider" />
-              <button className="fv-ctx-item fv-ctx-danger" onClick={() => { setDeleteModal({ name: contextMenu.name, node: contextMenu.node }); setContextMenu(null); }}>
+              <button className="fv-ctx-item fv-ctx-danger" onClick={() => { setDeleteModal({ name: contextMenu.name, id: contextMenu.id, isFolder: false }); setContextMenu(null); }}>
                 <span className="material-icons">delete_outline</span>Delete
               </button>
             </>

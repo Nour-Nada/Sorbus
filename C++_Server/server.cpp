@@ -63,7 +63,7 @@ void set_file_location(const std::string& new_location) { // Updates the file lo
 
 const int MAX_FILES = []() { //Maximum number of files allowed in the storage location this is to prevent the server from crashing
     const char* value = std::getenv("FILEAPP_MAX_FILES");
-    return (value && *value) ? std::stoi(value) : 100000;
+    return (value && *value) ? std::stoi(value) : 1000000;
 }(); //The maximum number of files allowed in the storage location
 
 //Database File Path
@@ -693,81 +693,53 @@ int main(void)
 
         // Get Routes
 
-        svr.Get("/api/files/name/:user_id", [&](const httplib::Request& req, httplib::Response& res) { //Retrieving file names
+        svr.Get("/api/files/name/:user_id", [&](const httplib::Request& req, httplib::Response& res) { //Retrieves direct children of a folder; ?folder= param is the path (empty = root)
             LOG_CALL();
-            std::string API_PATH = "GET: /api/files/name"; //Path in variable for error messages
+            std::string API_PATH = "GET: /api/files/name";
             std::string user_id = req.path_params.at("user_id");
 
-            int user_id_int = 0;
             try {
-                user_id_int = std::stoi(user_id);
+                std::stoi(user_id); //Validates user_id is numeric; Node.js already checks JWT ownership
             } catch (const std::invalid_argument& e) {
-                std::cout << e.what() << std::endl;
                 res.status = 400;
                 res.set_content(BAD_PARAMETER, "text/plain");
                 return;
             }
 
-            if (get_file_location().empty()) { //Returns an empty tree when storage path is not yet configured
+            if (get_file_location().empty()) {
                 res.status = 200;
-                res.set_content(nlohmann::json{{"tree", nlohmann::json::object()}, {"fileIds", nlohmann::json::object()}, {"fileInfo", nlohmann::json::object()}, {"initialized", false}}.dump(), "application/json");
+                res.set_content(nlohmann::json{{"items", nlohmann::json::array()}, {"initialized", false}}.dump(), "application/json");
                 return;
             }
+
+            std::string folder = req.get_param_value("folder"); //Empty string = root
 
             try {
                 SQLite::Database DB_Connection = openDB();
                 std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
 
-                SQLite::Statement result(DB_Connection, "SELECT * FROM files ORDER BY file_location ASC"); //Selects all the files
+                SQLite::Statement result(DB_Connection, "SELECT id, file_name, file_size, file_extension FROM files WHERE file_location = ? ORDER BY CASE WHEN file_extension = 'folder' THEN 0 ELSE 1 END, file_name ASC");
+                result.bind(1, folder);
 
-                nlohmann::json tree = nlohmann::json::object(); //Creates JSON object
-                nlohmann::json file_ids = nlohmann::json::object();
-                nlohmann::json file_info = nlohmann::json::object(); //Secondary metadata per path: size, isFolder, ext, created
-
-                while (result.executeStep()) { //Adds each file or folder by going row by row for each folder that got returned from the above query
-                    std::string file_location = result.getColumn("file_location").getText();
-                    std::string file_name = result.getColumn("file_name").getText();
+                nlohmann::json items = nlohmann::json::array();
+                while (result.executeStep()) {
+                    std::string name = result.getColumn("file_name").getText();
                     std::string type = result.getColumn("file_extension").getText();
                     int id = result.getColumn("id").getInt();
-                    long long file_size = result.getColumn("file_size").getInt64();
+                    long long size = result.getColumn("file_size").getInt64();
                     bool is_folder = (type == "folder");
                     std::string ext = is_folder ? "" : (type.length() > 0 && type[0] == '.' ? type.substr(1) : type);
-
-                    nlohmann::json* current = &tree; //Sets current equal to the JSON object
-
-                    std::stringstream ss(file_location);
-                    std::string folder;
-
-                    while (std::getline(ss, folder, '/')) { //Creates the JSON structure to be returned
-                        if (folder.empty()) continue;
-
-                        // If the folder doesn't exist yet, create it as an object
-                        if (!current->contains(folder)) {
-                            (*current)[folder] = nlohmann::json::object();
-                        }
-
-                        current = &(*current)[folder];
-                    }
-
-                    //Just assigns the location directly creating the Key Value pair; folders are included in file_ids so the frontend can look up their IDs
-                    std::string full_path = file_location.empty() ? file_name : file_location + "/" + file_name;
-                    file_ids[full_path] = id;
-                    file_info[full_path] = {{"size", file_size}, {"isFolder", is_folder}, {"ext", ext}};
-                    if (is_folder) {
-                        (*current)[file_name] = nlohmann::json::object();
-                    }
-                    else {
-                        (*current)[file_name] = full_path;
-                    }
+                    items.push_back({{"id", id}, {"name", name}, {"isFolder", is_folder}, {"size", size}, {"ext", ext}});
                 }
 
                 res.status = 200;
-                res.set_content(nlohmann::json{{"tree", tree}, {"fileIds", file_ids}, {"fileInfo", file_info}, {"initialized", true}}.dump(), "application/json"); //API response
+                res.set_content(nlohmann::json{{"items", items}, {"initialized", true}}.dump(), "application/json");
+                std::cout << GOOD_QUERY << API_PATH << std::endl;
             }
             catch (const std::exception& e) {
                 res.status = 500;
                 std::cout << e.what() << std::endl;
-                res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
+                res.set_content(DB_QUERY_ERROR, "text/plain");
             }
             return;
         });
@@ -959,17 +931,27 @@ int main(void)
             std::string API_PATH = "GET: /api/files/storage"; //Path in variable for error messages
 
             std::string loc = get_file_location();
-            if (loc.empty()) { //Returns 0 when storage path is not yet configured
+            if (loc.empty()) {
                 res.status = 200;
-                res.set_content("0", "text/plain");
+                res.set_content(nlohmann::json{{"free", 0}, {"used", 0}}.dump(), "application/json");
                 return;
             }
 
-            fs::space_info space = fs::space(loc);
-            uintmax_t available = space.available; // bytes available
+            uintmax_t available = fs::space(loc).available;
 
-            res.status = 200;
-            res.set_content(std::to_string(available), "text/plain"); //API response
+            try {
+                SQLite::Database DB_Connection = openDB();
+                SQLite::Statement result(DB_Connection, "SELECT COALESCE(SUM(file_size), 0) FROM files WHERE file_extension != 'folder'");
+                result.executeStep();
+                long long used = result.getColumn(0).getInt64();
+                res.status = 200;
+                res.set_content(nlohmann::json{{"free", (long long)available}, {"used", used}}.dump(), "application/json");
+            }
+            catch (const std::exception& e) {
+                res.status = 500;
+                std::cout << e.what() << std::endl;
+                res.set_content(DB_QUERY_ERROR, "text/plain");
+            }
             return;
         });
 

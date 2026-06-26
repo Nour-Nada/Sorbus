@@ -11,9 +11,9 @@ import axios from 'axios';
 import { useFileContext } from '../context/FileContext.jsx';
 import { useAccountContext } from '../context/AccountContext.jsx';
 
-function FileItemActions({ name, node, isFolder, openFolder, onRenameStart, onMoveStart }) {
-  // Per-item action buttons — rename is inline (signalled via onRenameStart), delete has its own modal
-  const { fileIds, currentPath, refreshFiles } = useFileContext();
+function FileItemActions({ item, openFolder, onRenameStart, onMoveStart }) {
+  // Per-item action buttons; item = { id, name, isFolder, size, ext }
+  const { currentPath, invalidateFolder, loadFolder } = useFileContext();
   const { userId } = useAccountContext();
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -31,35 +31,33 @@ function FileItemActions({ name, node, isFolder, openFolder, onRenameStart, onMo
   const handleDownload = async (e) => {
     // Downloads a file via signed token
     e.stopPropagation();
-    const fileId = fileIds[node];
-    if (fileId) await triggerDownload(fileId, name);
+    await triggerDownload(item.id, item.name);
   };
 
   const handleFolderDownload = async (e) => {
     // Downloads a folder as a zip via signed token
     e.stopPropagation();
-    const folderId = fileIds[[...currentPath, name].join('/')];
-    if (folderId) await triggerDownload(folderId, name + '.zip');
+    await triggerDownload(item.id, item.name + '.zip');
   };
 
   const handleRenameSubmit = async (newValue) => {
-    // Submits the rename to the API and refreshes the file tree
-    if (!newValue.trim() || newValue.trim() === name) return;
-    const id = isFolder ? fileIds[[...currentPath, name].join('/')] : fileIds[node];
-    if (!id) return;
+    // Submits the rename to the API and reloads the current folder
+    if (!newValue.trim() || newValue.trim() === item.name) return;
     try {
-      await axios.patch(`/api/files/name/${id}/${userId}`, { new_name: newValue.trim() });
-      refreshFiles();
+      await axios.patch(`/api/files/name/${item.id}/${userId}`, { new_name: newValue.trim() });
+      const pathStr = currentPath.join('/');
+      invalidateFolder(pathStr);
+      loadFolder(pathStr);
     } catch (err) { console.error('Rename failed:', err); }
   };
 
   const handleDelete = async () => {
-    // Deletes the file or folder (server cascades folder deletes) and refreshes
-    const id = isFolder ? fileIds[[...currentPath, name].join('/')] : fileIds[node];
-    if (!id) return;
+    // Deletes the file or folder (server cascades folder deletes) and reloads the current folder
     try {
-      await axios.delete(`/api/files/delete/${id}/${userId}`);
-      refreshFiles();
+      await axios.delete(`/api/files/delete/${item.id}/${userId}`);
+      const pathStr = currentPath.join('/');
+      invalidateFolder(pathStr);
+      loadFolder(pathStr);
       setDeleteOpen(false);
     } catch (err) { console.error('Delete failed:', err); }
   };
@@ -67,18 +65,18 @@ function FileItemActions({ name, node, isFolder, openFolder, onRenameStart, onMo
   return (
     <>
       <div className="fv-actions">
-        {isFolder ? (
+        {item.isFolder ? (
           <>
-            <button className="fv-act-btn" title="Open" onClick={e => { e.stopPropagation(); openFolder(name); }}>
+            <button className="fv-act-btn" title="Open" onClick={e => { e.stopPropagation(); openFolder(item.name); }}>
               <span className="material-icons">folder_open</span>
             </button>
             <button className="fv-act-btn" title="Download" onClick={handleFolderDownload}>
               <span className="material-icons">download</span>
             </button>
-            <button className="fv-act-btn fv-act-move" title="Move" onClick={e => { e.stopPropagation(); onMoveStart([{ name, node, isFolder: true }]); }}>
+            <button className="fv-act-btn fv-act-move" title="Move" onClick={e => { e.stopPropagation(); onMoveStart([item]); }}>
               <span className="material-icons">drive_file_move_outline</span>
             </button>
-            <button className="fv-act-btn" title="Rename" onClick={e => { e.stopPropagation(); onRenameStart(name, handleRenameSubmit); }}>
+            <button className="fv-act-btn" title="Rename" onClick={e => { e.stopPropagation(); onRenameStart(item.name, handleRenameSubmit); }}>
               <span className="material-icons">drive_file_rename_outline</span>
             </button>
             <button className="fv-act-btn fv-act-danger" title="Delete" onClick={e => { e.stopPropagation(); setDeleteOpen(true); }}>
@@ -90,10 +88,10 @@ function FileItemActions({ name, node, isFolder, openFolder, onRenameStart, onMo
             <button className="fv-act-btn" title="Download" onClick={handleDownload}>
               <span className="material-icons">download</span>
             </button>
-            <button className="fv-act-btn fv-act-move" title="Move" onClick={e => { e.stopPropagation(); onMoveStart([{ name, node, isFolder: false }]); }}>
+            <button className="fv-act-btn fv-act-move" title="Move" onClick={e => { e.stopPropagation(); onMoveStart([item]); }}>
               <span className="material-icons">drive_file_move_outline</span>
             </button>
-            <button className="fv-act-btn" title="Rename" onClick={e => { e.stopPropagation(); onRenameStart(name, handleRenameSubmit); }}>
+            <button className="fv-act-btn" title="Rename" onClick={e => { e.stopPropagation(); onRenameStart(item.name, handleRenameSubmit); }}>
               <span className="material-icons">drive_file_rename_outline</span>
             </button>
             <button className="fv-act-btn fv-act-danger" title="Delete" onClick={e => { e.stopPropagation(); setDeleteOpen(true); }}>
@@ -106,10 +104,10 @@ function FileItemActions({ name, node, isFolder, openFolder, onRenameStart, onMo
       {deleteOpen && (
         <div className="fv-modal-overlay" onClick={() => setDeleteOpen(false)}>
           <div className="fv-modal" onClick={e => e.stopPropagation()}>
-            <p className="fv-modal-title">{isFolder ? 'Delete folder' : 'Delete file'}</p>
+            <p className="fv-modal-title">{item.isFolder ? 'Delete folder' : 'Delete file'}</p>
             <p className="fv-modal-body">
-              Permanently delete <span className="fv-modal-filename">{name}</span>?
-              {isFolder && <><br />All contents will also be deleted.</>}
+              Permanently delete <span className="fv-modal-filename">{item.name}</span>?
+              {item.isFolder && <><br />All contents will also be deleted.</>}
               <br />This cannot be undone.
             </p>
             <div className="fv-modal-actions">

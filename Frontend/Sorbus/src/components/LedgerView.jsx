@@ -7,7 +7,6 @@
 // Self-Hosted Personal Cloud Storage — MIT License
 // ============================================================
 import { useState } from 'react';
-import { useFileContext } from '../context/FileContext.jsx';
 import FileItemActions from './FileItemActions.jsx';
 
 function formatSize(bytes) {
@@ -19,9 +18,8 @@ function formatSize(bytes) {
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }
 
-function LedgerView({ sortedEntries, filteredEntries, search, dragOverFolder, openFolder, openContextMenu, dragProps, sortField, sortDir, handleSort, getFileIcon, selectedItems, toggleSelect, onMoveStart, creatingFolder, newFolderName, setNewFolderName, onCreateFolder }) {
+function LedgerView({ sortedItems, filteredItems, search, dragOverFolder, openFolder, openContextMenu, dragProps, sortField, sortDir, handleSort, getFileIcon, selectedItems, toggleSelect, onMoveStart, creatingFolder, newFolderName, setNewFolderName, onCreateFolder }) {
   // Table-style list view with sortable columns for name, type, and size
-  const { fileInfo, currentPath } = useFileContext();
   const [renamingItem, setRenamingItem] = useState(null); // { name, onSubmit }
   const [renameValue, setRenameValue] = useState('');
 
@@ -35,15 +33,6 @@ function LedgerView({ sortedEntries, filteredEntries, search, dragOverFolder, op
     if (!renamingItem) return;
     await renamingItem.onSubmit(renameValue);
     setRenamingItem(null);
-  };
-
-  const getItemSize = (name, node) => {
-    // Returns raw bytes for a file, or the recursive total of all files inside a folder
-    if (typeof node === 'string') return fileInfo[node]?.size ?? -1;
-    const prefix = [...currentPath, name].join('/') + '/';
-    return Object.entries(fileInfo).reduce((sum, [path, info]) => {
-      return (path.startsWith(prefix) && !info.isFolder && info.size >= 0) ? sum + info.size : sum;
-    }, 0);
   };
 
   return (
@@ -82,28 +71,28 @@ function LedgerView({ sortedEntries, filteredEntries, search, dragOverFolder, op
           <span /><span /><span />
         </div>
       )}
-      {sortedEntries.map(([name, node]) => {
-        const isFolder = node !== null && typeof node === 'object';
-        const isSelected = selectedItems.has(name);
-        const isRenaming = renamingItem?.name === name;
+      {sortedItems.map(item => {
+        const isSelected = selectedItems.has(item.name);
+        const isRenaming = renamingItem?.name === item.name;
+        const typeLabel = item.isFolder ? 'Folder' : (item.ext ? item.ext.toUpperCase() : '—');
         return (
           <div
-            key={name}
-            className={`fv-row ${isFolder ? 'fv-folder-row' : 'fv-file-row'} ${dragOverFolder === name ? 'fv-drop-target' : ''} ${isSelected ? 'fv-selected' : ''}`}
-            onDoubleClick={isFolder && !isRenaming ? () => openFolder(name) : undefined}
-            onContextMenu={e => openContextMenu(e, name, node)}
-            {...(isRenaming ? {} : dragProps(name, node, isFolder))}
+            key={item.name}
+            className={`fv-row ${item.isFolder ? 'fv-folder-row' : 'fv-file-row'} ${dragOverFolder === item.name ? 'fv-drop-target' : ''} ${isSelected ? 'fv-selected' : ''}`}
+            onDoubleClick={item.isFolder && !isRenaming ? () => openFolder(item.name) : undefined}
+            onContextMenu={e => openContextMenu(e, item)}
+            {...(isRenaming ? {} : dragProps(item))}
           >
             <input
               type="checkbox"
               className="fv-checkbox"
               checked={isSelected}
-              onChange={() => toggleSelect(name)}
+              onChange={() => toggleSelect(item.name)}
               onClick={e => e.stopPropagation()}
             />
             <div className="fv-row-name-cell">
-              <span className={`material-icons fv-row-icon ${isFolder ? '' : 'fv-file-icon'}`}>
-                {isFolder ? 'folder' : getFileIcon(name)}
+              <span className={`material-icons fv-row-icon ${item.isFolder ? '' : 'fv-file-icon'}`}>
+                {item.isFolder ? 'folder' : getFileIcon(item.name)}
               </span>
               <div className="fv-row-name-group">
                 {isRenaming ? (
@@ -118,23 +107,19 @@ function LedgerView({ sortedEntries, filteredEntries, search, dragOverFolder, op
                   />
                 ) : (
                   <>
-                    <span className="fv-row-name">{name}</span>
-                    <span className="fv-row-meta">
-                      {isFolder ? 'Folder' : (fileInfo[node]?.ext ? fileInfo[node].ext.toUpperCase() : '—')}
-                      {' · '}
-                      {formatSize(getItemSize(name, node))}
-                    </span>
+                    <span className="fv-row-name">{item.name}</span>
+                    <span className="fv-row-meta">{typeLabel}{' · '}{formatSize(item.size)}</span>
                   </>
                 )}
               </div>
             </div>
-            <span className="fv-row-type">{isFolder ? 'Folder' : (fileInfo[node]?.ext ? fileInfo[node].ext.toUpperCase() : '—')}</span>
-            <span className="fv-row-size">{formatSize(getItemSize(name, node))}</span>
-            <FileItemActions name={name} node={node} isFolder={isFolder} openFolder={openFolder} onRenameStart={onRenameStart} onMoveStart={onMoveStart} />
+            <span className="fv-row-type">{typeLabel}</span>
+            <span className="fv-row-size">{formatSize(item.size)}</span>
+            <FileItemActions item={item} openFolder={openFolder} onRenameStart={onRenameStart} onMoveStart={onMoveStart} />
           </div>
         );
       })}
-      {filteredEntries.length === 0 && (
+      {filteredItems.length === 0 && (
         <p className="fv-empty">{search ? 'No results match your search.' : 'This folder is empty.'}</p>
       )}
     </div>

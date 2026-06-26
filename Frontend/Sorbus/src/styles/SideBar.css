@@ -132,6 +132,19 @@
     flex-shrink: 0;
 }
 
+.tree-spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid #1e2c3f;
+    border-top-color: #4a7fb5;
+    border-radius: 50%;
+    animation: tree-spin 0.7s linear infinite;
+    flex-shrink: 0;
+    margin-left: 4px;
+}
+
+@keyframes tree-spin { to { transform: rotate(360deg); } }
+
 .tree-icon {
     font-size: 16px;
     color: #8892a4;

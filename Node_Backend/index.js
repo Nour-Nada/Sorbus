@@ -260,9 +260,8 @@ app.get("/api/files/name/:user_id", limiter, verifyJWT, verifyUserId(), async (r
   const {user_id} = req.params;
   try {
     const response = await axios.get(`${C_Server_Route}/api/files/name/${user_id}`, {
-      headers: {
-        "key": API_KEY
-      }
+      headers: { "key": API_KEY },
+      params: { folder: req.query.folder ?? '' },
     });
     res.status(response.status).json(response.data);
   } catch (error) {

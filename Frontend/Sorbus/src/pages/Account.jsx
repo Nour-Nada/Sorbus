@@ -42,9 +42,8 @@ function Account() {
       axios.get('/api/user/verify'),
       axios.get('/api/user/name'),
       axios.get('/api/files/storage'),
-      axios.get('/api/files/filesizes'),
       axios.get('/api/features/location'),
-    ]).then(([, usersRes, freeRes, usedRes, locationRes]) => {
+    ]).then(([, usersRes, storageRes, locationRes]) => {
       const entries = Object.entries(usersRes.data)
         .map(([name, val]) => ({ name, id: val.id, email: val.email, access: val.access }))
         .sort((a, b) => (a.id === userId ? -1 : b.id === userId ? 1 : 0));
@@ -52,8 +51,8 @@ function Account() {
       const initialAccess = {};
       entries.forEach(e => { initialAccess[e.id] = e.access; });
       setLocalAccess(initialAccess);
-      setStorageFree(freeRes.data);
-      setStorageUsed(usedRes.data);
+      setStorageFree(storageRes.data.free);
+      setStorageUsed(storageRes.data.used);
       setSavedPath(locationRes.data || '');
     }).catch(err => console.error('Failed to load account data:', err))
       .finally(() => setLoading(false));

@@ -474,7 +474,7 @@ For questions, ideas, or general discussion, open a GitHub issue — all communi
 
 Released under the [MIT License](LICENSE). © Nour Nada.
 
-## Support the Project
+## Support Me
 
 If Sorbus saves you a subscription or just makes your life easier, consider supporting me:
 

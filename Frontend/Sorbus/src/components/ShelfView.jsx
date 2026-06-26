@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import FileItemActions from './FileItemActions.jsx';
 
-function ShelfView({ sortedEntries, filteredEntries, search, dragOverFolder, openFolder, openContextMenu, dragProps, getFileIcon, selectedItems, toggleSelect, onMoveStart, creatingFolder, newFolderName, setNewFolderName, onCreateFolder }) {
+function ShelfView({ sortedItems, filteredItems, search, dragOverFolder, openFolder, openContextMenu, dragProps, getFileIcon, selectedItems, toggleSelect, onMoveStart, creatingFolder, newFolderName, setNewFolderName, onCreateFolder }) {
   // Grid of file/folder cards for the shelf view
   const [renamingItem, setRenamingItem] = useState(null); // { name, onSubmit }
   const [renameValue, setRenameValue] = useState('');
@@ -43,27 +43,26 @@ function ShelfView({ sortedEntries, filteredEntries, search, dragOverFolder, ope
           />
         </div>
       )}
-      {sortedEntries.map(([name, node]) => {
-        const isFolder = node !== null && typeof node === 'object';
-        const isSelected = selectedItems.has(name);
-        const isRenaming = renamingItem?.name === name;
+      {sortedItems.map(item => {
+        const isSelected = selectedItems.has(item.name);
+        const isRenaming = renamingItem?.name === item.name;
         return (
           <div
-            key={name}
-            className={`fv-card ${isFolder ? 'fv-folder-card' : 'fv-file-card'} ${dragOverFolder === name ? 'fv-drop-target' : ''} ${isSelected ? 'fv-selected' : ''}`}
-            onDoubleClick={isFolder && !isRenaming ? () => openFolder(name) : undefined}
-            onContextMenu={e => openContextMenu(e, name, node)}
-            {...(isRenaming ? {} : dragProps(name, node, isFolder))}
+            key={item.name}
+            className={`fv-card ${item.isFolder ? 'fv-folder-card' : 'fv-file-card'} ${dragOverFolder === item.name ? 'fv-drop-target' : ''} ${isSelected ? 'fv-selected' : ''}`}
+            onDoubleClick={item.isFolder && !isRenaming ? () => openFolder(item.name) : undefined}
+            onContextMenu={e => openContextMenu(e, item)}
+            {...(isRenaming ? {} : dragProps(item))}
           >
             <input
               type="checkbox"
               className="fv-checkbox"
               checked={isSelected}
-              onChange={() => toggleSelect(name)}
+              onChange={() => toggleSelect(item.name)}
               onClick={e => e.stopPropagation()}
             />
-            <span className={`material-icons fv-card-icon ${isFolder ? '' : 'fv-file-icon'}`}>
-              {isFolder ? 'folder' : getFileIcon(name)}
+            <span className={`material-icons fv-card-icon ${item.isFolder ? '' : 'fv-file-icon'}`}>
+              {item.isFolder ? 'folder' : getFileIcon(item.name)}
             </span>
             {isRenaming ? (
               <input
@@ -76,13 +75,13 @@ function ShelfView({ sortedEntries, filteredEntries, search, dragOverFolder, ope
                 onClick={e => e.stopPropagation()}
               />
             ) : (
-              <span className="fv-card-name">{name}</span>
+              <span className="fv-card-name">{item.name}</span>
             )}
-            <FileItemActions name={name} node={node} isFolder={isFolder} openFolder={openFolder} onRenameStart={onRenameStart} onMoveStart={onMoveStart} />
+            <FileItemActions item={item} openFolder={openFolder} onRenameStart={onRenameStart} onMoveStart={onMoveStart} />
           </div>
         );
       })}
-      {filteredEntries.length === 0 && (
+      {filteredItems.length === 0 && (
         <p className="fv-empty">{search ? 'No results match your search.' : 'This folder is empty.'}</p>
       )}
     </div>

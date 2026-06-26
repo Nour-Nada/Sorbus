@@ -26,22 +26,19 @@ function SideBar() {
   const [storageUsed, setStorageUsed] = useState(null);
 
   const { username, access } = useAccountContext();
-  const { tree, setCurrentPath, uploadFiles } = useFileContext();
+  const { setCurrentPath, uploadFiles, storageReady } = useFileContext();
   const { logout } = useAuthContext();
   const navigate = useNavigate();
 
   const closeUpload = () => setIsUploadOpen(false); //Closes the upload modal (progress keeps showing in the corner toast)
 
   useEffect(() => {
-    // Fetches free disk space and total used file size, re-runs whenever the file tree changes
-    Promise.all([
-      axios.get('/api/files/storage'),
-      axios.get('/api/files/filesizes'),
-    ]).then(([freeRes, usedRes]) => {
-      setStorageFree(freeRes.data);
-      setStorageUsed(usedRes.data);
-    }).catch(err => console.error('Failed to fetch storage info:', err));
-  }, [tree]);
+    // Fetches free disk space and total used file size when storage becomes available
+    if (!storageReady) return;
+    axios.get('/api/files/storage')
+      .then(res => { setStorageFree(res.data.free); setStorageUsed(res.data.used); })
+      .catch(err => console.error('Failed to fetch storage info:', err));
+  }, [storageReady]);
 
   const formatBytes = (bytes) => {
     // Converts raw bytes to a readable GB/MB string
@@ -97,7 +94,7 @@ function SideBar() {
         <div className="side-bar-files">
           <p className="side-bar-section-label">FILES</p>
           <div className="side-bar-tree">
-            <FolderTree tree={tree} onSelect={(path) => setCurrentPath(path.split('/'))} />
+            <FolderTree onSelect={(path) => setCurrentPath(path.split('/'))} />
           </div>
         </div>
 
