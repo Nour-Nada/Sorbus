@@ -1,18 +1,18 @@
 services:
 
-  # ── C++ file server ───────────────────────────────────────────────────────
-  # Run this on the machine that holds the actual files (e.g. Raspberry Pi).
-  # The cloud server reaches this via Cloudflare tunnel using CPP_SERVER_URL.
+  # ── C++ file server (OPTIONAL containerized mode — read the README here first) ─
+  # This jails the server to the one mounted folder. For full-machine access,
+  # run the C++ server natively instead (see the main README).
   cpp-server:
     build:
-      context: ..
-      dockerfile: Docker/Dockerfile.cpp
+      context: ../..
+      dockerfile: Docker/optional-local-container/Dockerfile.cpp
     environment:
       - FILEAPP_API_KEY=${API_KEY:?API_KEY must be set in .env.local}
       - FILEAPP_REGISTER_KEY=${REGISTER_KEY:?REGISTER_KEY must be set in .env.local}
       - FILEAPP_FILE_LOCATION=/storage
       - FILEAPP_DB_PATH=/data/sorbus.db
-      - FILEAPP_MAX_FILES=${MAX_FILES:-100000}
+      - FILEAPP_MAX_FILES=${MAX_FILES:-1000000}
     volumes:
       # User files — bind-mounted from the host path set in .env.local
       - ${STORAGE_PATH:?STORAGE_PATH must be set in .env.local}:/storage

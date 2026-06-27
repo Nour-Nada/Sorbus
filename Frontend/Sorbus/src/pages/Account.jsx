@@ -98,6 +98,7 @@ function Account() {
   const friendlyPathError = (raw) => {
     // Translates C++ server error strings into user-readable messages
     if (typeof raw !== 'string') return 'Failed to update path.';
+    if (raw.includes('Outside the Allowed Root')) return 'That path is outside the area this server is allowed to access. Pick a folder inside the permitted root.';
     if (raw.includes('Incorrect Parameter')) return 'Path does not exist, is not absolute, or is not a valid directory.';
     if (/max|too many|limit/i.test(raw)) return 'Too many files to index at this path.';
     return raw;

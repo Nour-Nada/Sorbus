@@ -49,7 +49,12 @@ std::shared_mutex FILE_LOCATION_MUTEX; //Mutex to protect the file location stri
 std::string FILE_LOCATION = []() {
     const char* value = std::getenv("FILEAPP_FILE_LOCATION");
     return (value && *value) ? std::string(value) : "";
-}(); //The location of the stored files — set via FILEAPP_FILE_LOCATION env var or through the Account page
+}(); //The starting location shown to the user — set via FILEAPP_FILE_LOCATION env var or through the Account page
+
+const std::string ROOT_LIMIT = []() {
+    const char* value = std::getenv("FILEAPP_ROOT_LIMIT");
+    return (value && *value) ? std::string(value) : "";
+}(); //Boundary the storage path may be set within; empty = no limit (the whole filesystem the server can reach)
 
 std::string get_file_location() { // Reads the file location safely across threads
     std::shared_lock lock(FILE_LOCATION_MUTEX);
@@ -184,6 +189,7 @@ const std::string DUPLICATE_USER = "A User With This Username or Email Already E
 const std::string TOO_MANY_FILES = "The Maximum Number of Files Has Been Reached;";
 const std::string MISSING_BODY_PARAM = "The Information Sent is Missing Something;";
 const std::string ACCESS_DENIED = "Access Denied: Insufficient Permissions;";
+const std::string OUTSIDE_ROOT_LIMIT = "The Requested Path is Outside the Allowed Root;";
 
 //Global String Success
 const std::string GOOD_DB_CONNECTION = "Connected to SQLite Database; API Path ";
@@ -311,15 +317,14 @@ int main(void)
     initialize_file_location();  //Loads the file storage location from the database before accepting requests
     initialize_file_count();     //Loads the current file count from the database before the server starts accepting requests
 
-    //Opens up the file to which the output will be redirected
-    std::ofstream logFile(OUTPUT_FILE, std::ios::app);
-    if (!logFile.is_open()) {
-        std::cerr << "Failed to open log file!" << std::endl;
-        return 1;
-    }
-    //Redirects output of cout to the file
-    std::streambuf* coutBuf = std::cout.rdbuf();  // save original buffer
-    std::cout.rdbuf(logFile.rdbuf()); //changes original buffer
+    //Output is left on stdout so Docker captures it via `docker logs`. File redirection kept commented in case file logging is wanted again.
+    //std::ofstream logFile(OUTPUT_FILE, std::ios::app);
+    //if (!logFile.is_open()) {
+    //    std::cerr << "Failed to open log file!" << std::endl;
+    //    return 1;
+    //}
+    //std::streambuf* coutBuf = std::cout.rdbuf();  // save original buffer
+    //std::cout.rdbuf(logFile.rdbuf()); //changes original buffer
 
     svr.set_pre_request_handler([&](const httplib::Request& req, httplib::Response& res) { //Does the api key check logic before even allowing any routes to  be hit
             LOG_TIME();
@@ -1809,10 +1814,18 @@ int main(void)
                 }
 
                 fs::path new_path(new_file_location);
-                if (!new_path.is_absolute() || new_path.parent_path() == new_path.root_path() || !fs::exists(new_path) || !fs::is_directory(new_path)) {
+                if (!new_path.is_absolute() || !fs::exists(new_path) || !fs::is_directory(new_path)) {
                     res.status = 400;
                     std::cout << BAD_PARAMETER << API_PATH << std::endl;
                     res.set_content(BAD_PARAMETER, "text/plain");
+                    DB_Open_Connection.commit();
+                    return;
+                }
+
+                if (!ROOT_LIMIT.empty() && !is_path_within_base(ROOT_LIMIT, new_path)) { //Reject paths outside the configured boundary; empty ROOT_LIMIT means no boundary
+                    res.status = 403;
+                    std::cout << OUTSIDE_ROOT_LIMIT << API_PATH << std::endl;
+                    res.set_content(OUTSIDE_ROOT_LIMIT, "text/plain");
                     DB_Open_Connection.commit();
                     return;
                 }

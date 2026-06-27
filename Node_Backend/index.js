@@ -17,6 +17,7 @@ import cookieParser from "cookie-parser";
 import crypto from "crypto";
 
 const app = express();
+app.set('trust proxy', 1); //Trust the single reverse proxy (nginx) in front so express-rate-limit reads the real client IP from X-Forwarded-For
 const port = process.env.PORT || 3000;
 dotenv.config();
 

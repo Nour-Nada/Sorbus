@@ -40,6 +40,7 @@ The philosophy is simple: **you own your data.** Nothing lives on someone else's
 - [Architecture at a Glance](#architecture-at-a-glance)
 - [Recommended Setup](#recommended-setup)
 - [Deployment / Getting Started](#deployment--getting-started)
+- [Running the C++ Server](#running-the-c-server)
 - [Developer Guide](#developer-guide)
   - [How It All Fits Together](#how-it-all-fits-together)
   - [Authentication Model](#authentication-model)
@@ -68,7 +69,8 @@ The philosophy is simple: **you own your data.** Nothing lives on someone else's
 - 👤 **User accounts & roles** — owner / editor / viewer, with a built-in account and admin panel
 - 🔐 **Secure by design** — JWT access tokens, refresh cookies, bcrypt password hashing, signed single-use download links
 - 🗄️ **Self-contained storage** — SQLite metadata, files stored directly on your chosen disk path
-- 🐳 **Docker-first deployment** — three containers, two compose files, one setup script
+- 🌍 **Reach your whole machine** — the C++ server runs natively, so the owner can re-point storage to *any* folder or drive on the home computer; an optional `FILEAPP_ROOT_LIMIT` confines that to one branch if you'd rather
+- 🐳 **Containerized web tier** — the Node gateway + React UI ship as Docker images (the file server runs natively for full filesystem access; an optional container mode exists too)
 
 ---
 
@@ -119,7 +121,7 @@ The Node gateway reaches the C++ server over a **Cloudflare tunnel**, so your ho
 
 Sorbus is hardware- and host-agnostic, but if you're starting from scratch, here's what works well.
 
-**🏠 Home tier (file server + database).** Any always-on machine that can hold your files. A **Raspberry Pi 4 or 5** is the sweet spot — inexpensive, low-power, and more than enough for personal use. But you don't need to buy anything: an **old laptop or an unused desktop/PC** makes a great Sorbus host too — it already has a disk, and a laptop even comes with a built-in battery backup. Attach extra storage if you need it and point `STORAGE_PATH` at it.
+**🏠 Home tier (file server + database).** Any always-on machine that can hold your files. A **Raspberry Pi 4 or 5** is the sweet spot — inexpensive, low-power, and more than enough for personal use. But you don't need to buy anything: an **old laptop or an unused desktop/PC** makes a great Sorbus host too — it already has a disk, and a laptop even comes with a built-in battery backup. Attach extra storage if you need it and point your starting folder (`FILEAPP_FILE_LOCATION`) at it.
 
 **☁️ Cloud tier (web UI + gateway).** Any small VPS that can run Docker is enough — the gateway and frontend are lightweight. <!-- TODO: add my recommended cloud provider/plan here once I've chosen one. -->
 > _Recommended provider: coming soon._
@@ -137,10 +139,11 @@ This is the **easy path** for getting Sorbus running. Deployment is intentionall
 
 ### Prerequisites
 
-- **Docker** + Docker Compose on both machines
-- A **home machine / Raspberry Pi** to hold your files (runs the C++ server)
-- A **cloud server** to host the web UI + gateway (runs Node.js + React)
+- A **home machine** to hold your files and run the C++ server **natively** (so it can reach your whole filesystem). Needs a C++17 compiler — `g++`/`clang` on Linux/macOS, or Visual Studio / MinGW on Windows. **Docker is not required here.**
+- A **cloud server** with **Docker** + Docker Compose to host the web UI + gateway (Node.js + React)
 - A **Cloudflare tunnel** pointing at the C++ server on the home machine ([Cloudflare Tunnel docs](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/))
+
+> **Why native, not a container?** Sorbus is meant to reach *any* folder/drive on your home machine. A container has its own isolated filesystem and can only see what you mount into it, which fights that goal. So the file server runs natively. If you'd rather sandbox it to one folder, an optional container mode lives in [`Docker/optional-local-container/`](Docker/optional-local-container/) — read its README first.
 
 ### Step 1 — Generate your config
 
@@ -157,20 +160,19 @@ bash setup.sh
 
   | Value | What it is |
   |---|---|
-  | `STORAGE_PATH` | Absolute path on the home machine where files are stored |
+  | `FILEAPP_FILE_LOCATION` | The **starting** folder the app opens on. Only a starting point — the owner can re-point storage anywhere allowed. |
+  | `FILEAPP_ROOT_LIMIT` | Optional boundary the storage path must stay within. **Leave blank for full filesystem access** (the whole home machine). |
   | `REGISTER_KEY` | The signup key you share with people you want to allow to register |
   | `CORS_ORIGIN` | The exact URL users type in their browser (e.g. `https://sorbus.yourdomain.com`) |
   | `CPP_SERVER_URL` | The Cloudflare tunnel URL pointing at the C++ server |
 
-It writes two files: **`.env.local`** (home machine) and **`.env.cloud`** (cloud server). Both are git-ignored — never commit them. Copy `.env.cloud` to your cloud server.
+It writes two files: **`.env.local`** (home machine — read directly by the native C++ server) and **`.env.cloud`** (cloud server). Both are git-ignored — never commit them. Copy `.env.cloud` to your cloud server.
 
-> The same `API_KEY` is written to both files; it's how the Node gateway authenticates to the C++ server, so the two must match.
+> The same `API_KEY` is written to both files (as `FILEAPP_API_KEY` locally, `API_KEY` in the cloud); it's how the Node gateway authenticates to the C++ server, so the two values must match.
 
-### Step 2 — Start the home machine (C++ server)
+### Step 2 — Start the home machine (C++ server, natively)
 
-```bash
-docker compose -f docker-compose.local.yml --env-file .env.local up -d
-```
+Build and run the C++ server with the variables from `.env.local` — see [Running the C++ Server](#running-the-c-server) below for the exact per-OS commands.
 
 ### Step 3 — Start the cloud server (Node.js + React)
 
@@ -182,9 +184,63 @@ docker compose -f docker-compose.cloud.yml --env-file .env.cloud up -d
 
 1. Open your `CORS_ORIGIN` URL in a browser.
 2. Sign up — **the first account automatically becomes the `owner`.** Every account after that starts as a `viewer`.
-3. As owner, open the **Account** page and set the **storage path** (this initializes the file index).
+3. As owner, open the **Account** page and set the **storage path** (this initializes the file index). You can point it at any folder allowed by `FILEAPP_ROOT_LIMIT` — or anywhere on the machine if you left that blank.
 
 You're live.
+
+---
+
+## Running the C++ Server
+
+The file server runs **natively** on the home machine so it has direct, full-speed access to your whole filesystem. It's a single binary built from vendored libraries — no system packages to install beyond a C++17 compiler.
+
+> **One compile note:** `sqlite3.c` and `miniz.c` are **C** files and must be compiled with a **C** compiler (`gcc`/`clang`). Compiling them with `g++` fails, because C++ forbids the implicit `void*` conversions SQLite relies on. The commands below do this correctly.
+
+### Linux / macOS
+
+```bash
+cd C++_Server
+
+# 1. Compile the C libraries with a C compiler
+gcc -O2 -I header_libs/sqlite3 -c header_libs/sqlite3/sqlite3.c -o sqlite3.o
+gcc -O2 -c header_libs/miniz/miniz.c -o miniz.o
+
+# 2. Compile + link the server (C++)
+g++ -std=c++17 -O2 -I header_libs/sqlite3 -I header_libs \
+  server.cpp header_libs/src_sqlite/*.cpp sqlite3.o miniz.o \
+  -lpthread -ldl -lm -o sorbus-server
+
+# 3. Load the generated env vars and run (from wherever your .env.local is)
+set -a; . ../Docker/.env.local; set +a
+./sorbus-server
+```
+
+On macOS use the same commands (Apple Clang provides `gcc`/`g++`); drop `-ldl` if your linker complains (it's a no-op on macOS).
+
+To keep it running across reboots, wrap it in a **systemd** service (Linux) or a **launchd** plist (macOS).
+
+### Windows
+
+**Build:** open `C++_Server/C++_Server_VS.sln` in **Visual Studio** and build (x64, Release). That produces `sorbus-server.exe` under `x64/Release/`. (Developer Mode must be on; Smart App Control can block locally-built binaries.) Alternatively build with **MinGW-w64** using the same two-step `gcc`/`g++` commands as above (omit `-ldl`).
+
+**Run** from PowerShell, loading `.env.local` into the environment first:
+
+```powershell
+Get-Content ..\Docker\.env.local | Where-Object { $_ -and $_ -notmatch '^\s*#' } | ForEach-Object {
+  $name, $value = $_ -split '=', 2
+  Set-Item "Env:$name" $value.Trim()
+}
+.\sorbus-server.exe
+```
+
+Use forward slashes in `FILEAPP_FILE_LOCATION` / `FILEAPP_ROOT_LIMIT` (e.g. `C:/Users/you/Documents`). To run on boot, register it as a scheduled task (**Task Scheduler** → "At log on / At startup").
+
+### What `FILEAPP_ROOT_LIMIT` does
+
+- **Blank (default):** no boundary — the owner can set the storage path to **any** folder or drive the server can reach. This is the "access my whole computer from anywhere" mode.
+- **Set to a path:** the storage path can only be set **inside** that folder. Attempts to point outside it are rejected with a clear *"outside the allowed root"* message in the UI (not a generic error).
+
+`FILEAPP_FILE_LOCATION` is only the **starting** folder — never a fence. The fence is `FILEAPP_ROOT_LIMIT`.
 
 ---
 
@@ -239,12 +295,13 @@ Frontend/Sorbus/src/
   components/                 — SideBar, FileView, ShelfView, LedgerView, etc.
 
 Docker/
-  docker-compose.local.yml    — C++ server (home machine)
   docker-compose.cloud.yml    — Node.js + React (cloud server)
-  Dockerfile.cpp / .node / .react
+  Dockerfile.node / .react
   nginx.conf.template         — ${NODE_BACKEND_URL} substituted at startup
   setup.sh                    — generates .env.local + .env.cloud
   .env.local.example / .env.cloud.example
+  optional-local-container/   — OPTIONAL containerized C++ server (read its README first)
+    Dockerfile.cpp · docker-compose.local.yml · README.md · .env.example
 ```
 
 ### Database Schema
@@ -338,11 +395,12 @@ All C++ routes require a `key` header matching `FILEAPP_API_KEY`. The Node gatew
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `FILEAPP_API_KEY` | No | `dev-key-change-me` | Shared secret checked on every request. |
+| `FILEAPP_API_KEY` | No | `test12345` | Shared secret checked on every request. Set a real one (setup.sh does). |
 | `FILEAPP_REGISTER_KEY` | **Yes** | — | Signup key written to the DB on startup. Server exits if not set. |
-| `FILEAPP_FILE_LOCATION` | No | `""` | Storage path. Empty = not yet configured. |
+| `FILEAPP_FILE_LOCATION` | No | `""` | **Starting** folder shown on first load. Not a boundary — the owner can re-point storage from the Account page. |
+| `FILEAPP_ROOT_LIMIT` | No | `""` | Boundary the storage path must stay within. **Empty = no limit** (full filesystem access). |
 | `FILEAPP_DB_PATH` | No | `sorbus.db` | Path to the SQLite file. |
-| `FILEAPP_MAX_FILES` | No | `100000` | Max files before uploads return 507. |
+| `FILEAPP_MAX_FILES` | No | `1000000` | Max files before uploads return 507. |
 
 </details>
 
@@ -377,13 +435,12 @@ Run each tier directly (outside Docker) for fast iteration.
 
 ```bash
 cd C++_Server
-g++ -std=c++17 -O2 \
-  -I header_libs/sqlite3 -I header_libs \
-  server.cpp \
-  header_libs/sqlite3/sqlite3.c \
-  header_libs/miniz/miniz.c \
-  header_libs/src_sqlite/*.cpp \
-  -lpthread -o sorbus-server
+# Compile the C libraries with gcc, then the C++ server with g++ (see "Running the C++ Server" for why)
+gcc -O2 -I header_libs/sqlite3 -c header_libs/sqlite3/sqlite3.c -o sqlite3.o
+gcc -O2 -c header_libs/miniz/miniz.c -o miniz.o
+g++ -std=c++17 -O2 -I header_libs/sqlite3 -I header_libs \
+  server.cpp header_libs/src_sqlite/*.cpp sqlite3.o miniz.o \
+  -lpthread -ldl -lm -o sorbus-server
 
 FILEAPP_REGISTER_KEY=dev-register-key ./sorbus-server
 ```
@@ -411,7 +468,7 @@ npm run dev        # Vite dev server; proxies /api to VITE_API_URL or http://loc
 
 These will save you debugging time:
 
-- **The C++ terminal looks silent.** At startup, all `std::cout` is redirected to `server_output.txt` (append mode). Check that file for route logs — `std::cerr` (startup warnings only) still hits the terminal.
+- **C++ logs go to stdout.** The server prints its route logs to the terminal (standard output), so you'll see them live when running natively, or via `docker logs` in the optional container mode. (The old `server_output.txt` file redirect is disabled — left commented in `main()` if you ever want file logging back.)
 - **Don't change two error strings.** Node returns `"Invalid JWT token."` (401) and `"Access denied: user ID mismatch."` (403). The frontend matches these *exact* strings to trigger logout / redirect. Changing them silently breaks auth UX.
 - **Thread-safe storage path.** `FILE_LOCATION` in C++ is guarded by a `shared_mutex` — always use `get_file_location()` / `set_file_location()`, never read it directly.
 - **Per-request DB connections.** Every C++ route opens its own connection via `openDB()` (with a 5s busy timeout). Never share a `SQLite::Database` across threads.
@@ -431,15 +488,17 @@ The **first signup becomes owner**; everyone else starts as a viewer. The owner 
 
 ### Containerization Details
 
+The **cloud tier** is containerized (this is the recommended deployment for it):
+
 | Image | Base | Notes |
 |---|---|---|
-| `Dockerfile.cpp` | `gcc:14` → `debian:bookworm-slim` | Multi-stage: stage 1 compiles `server.cpp` + all vendored libs; stage 2 ships only the binary. |
 | `Dockerfile.node` | `node:lts-alpine` | `npm ci --omit=dev`, runs `node index.js` directly. |
 | `Dockerfile.react` | `node:lts-alpine` → `nginx:alpine` | Multi-stage: `vite build`, then nginx serves `dist/`. |
 
 - **nginx** proxies `/api/*` to the Node container. The `nginx.conf.template` uses `${NODE_BACKEND_URL}`, which nginx substitutes at container startup (the template lives in `/etc/nginx/templates/`).
 - `client_max_body_size 0` + `proxy_request_buffering off` allow large, unbuffered file streaming.
-- The C++ container mounts your files at `/storage` (bind mount) and persists the DB at `/data` (named volume).
+
+The **C++ server is not containerized by default** (it runs natively for full filesystem access). An optional container image — `gcc:14` → `debian:trixie-slim`, multi-stage so only the binary ships — lives in [`Docker/optional-local-container/`](Docker/optional-local-container/); it jails the server to one bind-mounted `/storage` folder and persists the DB on a named volume. Read that folder's README for the trade-offs before using it.
 
 ---
 
@@ -447,8 +506,8 @@ The **first signup becomes owner**; everyone else starts as a viewer. The owner 
 
 **In plain terms (worth reading even if you're not technical):** Sorbus is *your* private cloud, which means **you** are the administrator and the security is in your hands. A few things to understand:
 
-- **Your account password is the key to everything.** If someone gets the password to an `owner` or `editor` account, they can browse, download, change, or delete the files in your storage — and an `owner` can also change the storage location and manage other users. Use a **strong, unique password**, and don't reuse it from other sites.
-- **The server can reach whatever folder you point it at.** Set `STORAGE_PATH` to a dedicated folder meant for sharing — *not* your entire drive or your home directory — so that even in a worst case the exposure is limited to that folder.
+- **Your account password is the key to everything.** If someone gets the password to an `owner` or `editor` account, they can browse, download, change, or delete your files — and an `owner` can also re-point the storage location and manage other users. Use a **strong, unique password**, and don't reuse it from other sites.
+- **By default the server can reach your *entire* filesystem.** This is the intended feature — remote access to any folder/drive on your home machine — but it means an `owner` account compromise exposes your whole disk. Decide deliberately: leave `FILEAPP_ROOT_LIMIT` **blank** only if you genuinely want full-machine access; otherwise **set it** to confine access to one branch (e.g. a dedicated `~/sorbus-shared` folder), so even a worst case is limited to that subtree. `FILEAPP_FILE_LOCATION` is only the starting folder — it does **not** limit anything.
 - **Anyone with your `REGISTER_KEY` can make an account.** Treat it like a password and share it only with people you trust.
 - **Keep your host machine updated and patched.** Self-hosting means the operating system, Docker, and your Cloudflare tunnel are your responsibility to keep current.
 
@@ -466,7 +525,7 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for ho
 
 ## Reporting Issues
 
-Found a bug? Open a [GitHub issue](../../issues/new/choose) using the bug report template. Include what you were doing, what you expected, what happened, and any relevant logs (the C++ server logs to `server_output.txt`).
+Found a bug? Open a [GitHub issue](../../issues/new/choose) using the bug report template. Include what you were doing, what you expected, what happened, and any relevant logs (the C++ server logs to the terminal / `docker logs`).
 
 For questions, ideas, or general discussion, open a GitHub issue — all communication goes through GitHub.
 
