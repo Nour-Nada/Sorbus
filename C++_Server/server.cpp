@@ -187,6 +187,7 @@ const std::string ACCESS_DENIED = "Access Denied: Insufficient Permissions;";
 
 //Global String Success
 const std::string GOOD_DB_CONNECTION = "Connected to SQLite Database; API Path ";
+const std::string GOOD_QUERY = "Successfully Queried the Database; API Path ";
 
 //Global helper functions
 #define LOG_TIME() std::cout << std::endl << "[" << get_time_stamp() << "] " << std::endl; // Logs the time the API was called
@@ -284,7 +285,7 @@ void reinitialize_files(SQLite::Database &db, int user_id) { //Reinitializes the
             insert.bind(1, user_id);
             insert.bind(2, file_name);
             insert.bind(3, file_location);
-            insert.bind(4, file_size);
+            insert.bind(4, static_cast<int64_t>(file_size));
             insert.bind(5, file_extension);
             insert.exec();
             insert.reset(); //Reset so the statement can be reused for the next file
@@ -1150,7 +1151,7 @@ int main(void)
                 insert.bind(1, user_id_int);
                 insert.bind(2, file_name);
                 insert.bind(3, file_location);
-                insert.bind(4, (long long)total_bytes);
+                insert.bind(4, static_cast<int64_t>(total_bytes));
                 insert.bind(5, extension);
                 insert.exec(); //Adds the necessary information into the database so database and local storage stay in sync
 

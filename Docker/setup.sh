@@ -30,7 +30,7 @@ prompt_required() {
     local value=""
     while [ -z "$value" ]; do
         read -rp "$message: " value
-        [ -z "$value" ] && echo "  This field is required."
+        [ -z "$value" ] && echo "  This field is required." >&2
     done
     echo "$value"
 }
@@ -62,7 +62,7 @@ REGISTER_KEY=$(prompt_required "Registration key — users need this to create a
   (choose something only you share with people you want to allow to sign up)")
 
 CPP_PORT=$(prompt_default "C++ server port" "8080")
-MAX_FILES=$(prompt_default "Maximum files to index" "100000")
+MAX_FILES=$(prompt_default "Maximum files to index" "1000000")
 
 echo ""
 
