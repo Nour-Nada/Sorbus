@@ -50,7 +50,7 @@ Frontend/Sorbus/src/
   context/
     AuthContext.jsx           — login state, token refresh, logout, module-level token var
     AccountContext.jsx        — userId, username, access level, server path
-    FileContext.jsx           — file tree, upload queue, storageReady flag
+    FileContext.jsx           — lazy folder cache, upload queue, storageReady flag
   pages/
     LandingPage.jsx
     Login.jsx
@@ -108,14 +108,17 @@ server_info — singleton row (id=1): server_status, register_key, file_location
 | `FILEAPP_REGISTER_KEY` | **Yes** | — | Written to DB on startup. Server calls `std::exit(1)` if not set. |
 | `FILEAPP_FILE_LOCATION` | No | `""` | Storage path. Empty = not configured. Set via Account page after first boot. |
 | `FILEAPP_DB_PATH` | No | `sorbus.db` | Path to SQLite database file. |
-| `FILEAPP_MAX_FILES` | No | `100000` | Max non-folder files before uploads return 507. |
+| `FILEAPP_MAX_FILES` | No | `1000000` | Max non-folder files before uploads return 507. |
+| `FILEAPP_ROOT_LIMIT` | No | `""` | Boundary path the storage path must stay within. Empty = full filesystem access. Enforced in the location-change route; returns `OUTSIDE_ROOT_LIMIT` error string if violated. |
 
 ---
 
 ## C++ Server — Critical Behaviors
 
+**`.env.local` auto-load:** The server calls `load_dotenv(".env.local")` as its very first static initializer (before any global variable reads `getenv`). This means users can drop a `.env.local` file next to the binary and it will be loaded automatically on all platforms — no shell sourcing needed. Real environment variables always take precedence (existing vars are never overwritten). On Windows uses `_putenv_s`; on Linux/macOS uses `setenv(..., 0)`.
+
 **Startup sequence (in order):**
-`initialize_schema()` → `initialize_register_key()` → `initialize_file_location()` → `initialize_file_count()` → redirect stdout to `server_output.txt` → register routes → `svr.listen()`
+`load_dotenv(".env.local")` (static init) → `initialize_schema()` → `initialize_register_key()` → `initialize_file_location()` → `initialize_file_count()` → redirect stdout to `server_output.txt` → register routes → `svr.listen()`
 
 **Logging:** All `std::cout` is redirected to `server_output.txt` (append mode) at startup. The terminal appears silent — this is normal. `std::cerr` still goes to terminal (startup warnings only). Check `server_output.txt` for all route logs.
 
@@ -154,10 +157,10 @@ All routes require a `key` header matching `FILEAPP_API_KEY`. Checked in `set_pr
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| GET | `/api/files/name/:user_id` | key only | Returns `{ tree, fileIds, fileInfo, initialized }`. Returns `initialized: false` with empty maps if `FILE_LOCATION` is empty. |
+| GET | `/api/files/name/:user_id?folder=` | key only | Returns `{ items: [{ id, name, isFolder, size, ext }], initialized }`. `?folder=` is the relative folder path (empty = root). Folders sorted before files. Returns `initialized: false` with empty items array if `FILE_LOCATION` is empty. |
 | GET | `/api/files/download/:file_id/:user_id` | key only | Streams file in 64KB chunks. Folders zipped with miniz to temp file, streamed, then deleted. Editor+ only. |
-| GET | `/api/files/storage` | key only | Available bytes on storage partition as plain text. Returns `"0"` if `FILE_LOCATION` empty. |
-| GET | `/api/files/filesizes` | key only | `SUM(file_size)` of all files in DB as plain text. |
+| GET | `/api/files/storage` | key only | Returns `{ free, used }` JSON — free bytes on storage partition + `SUM(file_size)` of all DB rows. Returns `{ free: 0, used: 0 }` if `FILE_LOCATION` empty. |
+| GET | `/api/files/filesizes` | key only | `SUM(file_size)` of all files in DB as plain text. (Legacy — frontend no longer calls this directly; use `/api/files/storage` instead.) |
 | POST | `/api/files/upload/:user_id` | key only | Raw body upload. Headers: `file_name`, `file_location`. Null byte check on both. Editor+ only. |
 | POST | `/api/files/create/:user_id` | key only | Body: `{new_name, folder_path}`. Editor+ only. |
 | PATCH | `/api/files/name/:file_id/:user_id` | key only | Body: `{new_name}`. Cascades `file_location` update to all children if folder. Editor+ only. |
@@ -232,8 +235,8 @@ All routes require a `key` header matching `FILEAPP_API_KEY`. Checked in `set_pr
 | `GET /api/files/download/:file_id/:user_id` | limiter, verifyJWT, verifyUserId() | JWT-protected direct stream. Used by JS axios layer. |
 | `GET /api/files/download-token/:file_id/:user_id` | limiter, verifyJWT, verifyUserId() | Issues 60s single-use token. Returns `{ token }`. |
 | `GET /api/files/download-stream/:file_id/:user_id?token=` | downloadLimiter | No JWT. Validates + deletes token, streams file. Used for native browser `<a>` downloads. |
-| `GET /api/files/storage` | limiter, verifyJWT | |
-| `GET /api/files/filesizes` | limiter, verifyJWT | |
+| `GET /api/files/storage` | limiter, verifyJWT | Returns `{ free, used }` JSON. |
+| `GET /api/files/filesizes` | limiter, verifyJWT | Legacy — returns plain-text SUM. Frontend uses `/api/files/storage` instead. |
 | `POST /api/files/upload/:user_id` | limiter, verifyJWT, verifyUserId() | Streams body, no size limit. |
 | `POST /api/files/create/:user_id` | limiter, verifyJWT, verifyUserId() | |
 | `PATCH /api/files/name/:file_id/:user_id` | limiter, verifyJWT, verifyUserId() | |
@@ -271,12 +274,15 @@ AccountProvider > AuthProvider > FileProvider > Routes
 - Response 401 (second / refresh fails): `clearSession(401)` → navigates to `/unauthorized`.
 - Response 403 `"Access denied: user ID mismatch."`: `clearSession(403)` → navigates to `/login`.
 
-**`storageReady` flag** (`FileContext.jsx`): `false` when C++ returns `initialized: false`. `FileView` renders an "Storage path not configured" message instead of file grid. `storageReady` initializes to `true` causing a brief flash before first `refreshFiles()` resolves — known cosmetic issue.
+**`storageReady` flag** (`FileContext.jsx`): `null` while loading, `false` when C++ returns `initialized: false` (storage path not set), `true` when initialized. `FileView` renders a "Storage path not configured" message when `false`. `filesLoading` is `true` while the current folder's fetch is in flight.
 
-**File data model** (`FileContext.jsx`):
-- `tree`: nested object. Folders are `{}`. Files are their full path string. Example: `{ "photos": { "beach.jpg": "photos/beach.jpg" }, "readme.txt": "readme.txt" }`
-- `fileIds`: flat map `fullPath → DB id` for both files and folders.
-- `fileInfo`: flat map `fullPath → { size: bytes, isFolder: bool, ext: string }`. `ext` has no leading dot. Folder `size` is `-1` from DB; UI computes folder size recursively from `fileInfo`.
+**Lazy folder cache** (`FileContext.jsx`): Files load one folder at a time on demand rather than all at once.
+- `folderCache`: object keyed by folder path string (empty string = root), value is array of `{ id, name, isFolder, size, ext }` direct children. `undefined` = not yet loaded; set to `[]` on empty folder.
+- `loadFolder(pathStr)`: fetches direct children of `pathStr` from `/api/files/name?folder=pathStr`. No-ops if already cached or fetch already in-flight. Sets `storageReady` from the `initialized` flag on root loads.
+- `invalidateFolder(pathStr)`: removes the cache entry so the next `loadFolder` re-fetches. Always call `invalidateFolder` then `loadFolder` together after any mutation (upload, rename, move, delete, create).
+- `cacheRef`: `useRef` mirror of `folderCache` for synchronous checks inside `loadFolder` to avoid stale closure issues.
+- `pendingFetches`: `useRef` Set of in-flight path strings to prevent duplicate concurrent requests for the same folder.
+- `refreshFiles()`: clears the entire cache and reloads root. Used after a storage path change.
 
 **SideBar logout:** Uses `flushSync(() => logout())` before `navigate('/login')` to prevent a race with ProtectedRoutes re-rendering.
 

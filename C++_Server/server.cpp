@@ -38,7 +38,37 @@ namespace fs = std::filesystem;
 // HTTP
 httplib::Server svr;
 
+static void load_dotenv(const std::string& path) { // Reads KEY=VALUE pairs from path into the process environment; skips vars already set so real env always wins
+    std::ifstream f(path);
+    if (!f.is_open()) return;
+    std::string line;
+    while (std::getline(f, line)) {
+        auto start = line.find_first_not_of(" \t\r\n");
+        if (start == std::string::npos || line[start] == '#') continue;
+        line = line.substr(start);
+        auto eq = line.find('=');
+        if (eq == std::string::npos) continue;
+        std::string key = line.substr(0, eq);
+        std::string val = line.substr(eq + 1);
+        key.erase(key.find_last_not_of(" \t") + 1);
+        auto vs = val.find_first_not_of(" \t");
+        if (vs != std::string::npos) val = val.substr(vs);
+        auto ve = val.find_last_not_of(" \t\r\n");
+        if (ve != std::string::npos) val = val.substr(0, ve + 1);
+        if (val.size() >= 2 && ((val.front() == '"' && val.back() == '"') || (val.front() == '\'' && val.back() == '\'')))
+            val = val.substr(1, val.size() - 2);
+        if (key.empty()) continue;
+#ifdef _WIN32
+        if (!std::getenv(key.c_str())) _putenv_s(key.c_str(), val.c_str());
+#else
+        setenv(key.c_str(), val.c_str(), 0);
+#endif
+    }
+}
+
 //Global Variables
+const bool ENV_LOADED = (load_dotenv(".env.local"), true); //Loads .env.local into the process environment before any other globals read env vars
+
 const std::string API_KEY = []() {
     const char* value = std::getenv("FILEAPP_API_KEY");
     return (value && *value) ? std::string(value) : "";
@@ -317,14 +347,15 @@ int main(void)
     initialize_file_location();  //Loads the file storage location from the database before accepting requests
     initialize_file_count();     //Loads the current file count from the database before the server starts accepting requests
 
-    //Output is left on stdout so Docker captures it via `docker logs`. File redirection kept commented in case file logging is wanted again.
-    //std::ofstream logFile(OUTPUT_FILE, std::ios::app);
-    //if (!logFile.is_open()) {
-    //    std::cerr << "Failed to open log file!" << std::endl;
-    //    return 1;
-    //}
-    //std::streambuf* coutBuf = std::cout.rdbuf();  // save original buffer
-    //std::cout.rdbuf(logFile.rdbuf()); //changes original buffer
+    //Opens up the file to which the output will be redirected
+    std::ofstream logFile(OUTPUT_FILE, std::ios::app);
+    if (!logFile.is_open()) {
+        std::cerr << "Failed to open log file!" << std::endl;
+        return 1;
+    }
+    //Redirects output of cout to the file
+    std::streambuf* coutBuf = std::cout.rdbuf();  // save original buffer
+    std::cout.rdbuf(logFile.rdbuf()); //changes original buffer
 
     svr.set_pre_request_handler([&](const httplib::Request& req, httplib::Response& res) { //Does the api key check logic before even allowing any routes to  be hit
             LOG_TIME();

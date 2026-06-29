@@ -221,7 +221,11 @@ To keep it running across reboots, wrap it in a **systemd** service (Linux) or a
 
 ### Windows
 
-**Build:** open `C++_Server/C++_Server_VS.sln` in **Visual Studio** and build (x64, Release). That produces `sorbus-server.exe` under `x64/Release/`. (Developer Mode must be on; Smart App Control can block locally-built binaries.) Alternatively build with **MinGW-w64** using the same two-step `gcc`/`g++` commands as above (omit `-ldl`).
+**Build:** open `C++_Server/C++_Server_VS.sln` in **Visual Studio** and build (x64, Release). That produces `sorbus-server.exe` under `x64/Release/`. Developer Mode must be on.
+
+> **⚠️ Smart App Control:** Windows may block the compiled binary because it is unsigned — locally-built executables have no code-signing certificate, so Windows cannot verify their publisher. If you hit this, the simplest fix is to run the server through **WSL2** instead: install Ubuntu from the Microsoft Store, then follow the Linux/macOS compile commands above inside WSL2. SAC does not apply to WSL2 processes.
+
+Alternatively build with **MinGW-w64** using the same two-step `gcc`/`g++` commands as above (omit `-ldl`), though that binary will have the same signing issue.
 
 **Run** from PowerShell, loading `.env.local` into the environment first:
 
@@ -468,7 +472,7 @@ npm run dev        # Vite dev server; proxies /api to VITE_API_URL or http://loc
 
 These will save you debugging time:
 
-- **C++ logs go to stdout.** The server prints its route logs to the terminal (standard output), so you'll see them live when running natively, or via `docker logs` in the optional container mode. (The old `server_output.txt` file redirect is disabled — left commented in `main()` if you ever want file logging back.)
+- **C++ logs go to `server_output.txt`.** At startup the server redirects `std::cout` to `server_output.txt` (append mode), so the terminal appears silent — this is normal. Check that file for route logs. `std::cerr` (startup warnings) still goes to the terminal.
 - **Don't change two error strings.** Node returns `"Invalid JWT token."` (401) and `"Access denied: user ID mismatch."` (403). The frontend matches these *exact* strings to trigger logout / redirect. Changing them silently breaks auth UX.
 - **Thread-safe storage path.** `FILE_LOCATION` in C++ is guarded by a `shared_mutex` — always use `get_file_location()` / `set_file_location()`, never read it directly.
 - **Per-request DB connections.** Every C++ route opens its own connection via `openDB()` (with a 5s busy timeout). Never share a `SQLite::Database` across threads.
