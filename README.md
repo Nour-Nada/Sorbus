@@ -14,7 +14,7 @@
   <!-- License badge -->
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
   <!-- TODO: Buy Me a Coffee — replace <your-bmc-link> with your real link -->
-  <a href="https://www.buymeacoffee.com/&lt;your-bmc-link&gt;"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow.svg" alt="Buy Me a Coffee" /></a>
+  <a href="https://www.patreon.com/nour_dev/posts/buy-me-coffee-162723597"><img src="https://img.shields.io/badge/Support-Patreon-orange.svg" alt="Support on Patreon" /></a>
 </p>
 
 ---
@@ -29,7 +29,7 @@ The philosophy is simple: **you own your data.** Nothing lives on someone else's
 
 **Contact:** nour.nada.dev@gmail.com
 
-**Support:** If Sorbus is useful to you, consider supporting development — [Buy Me a Coffee](https://www.buymeacoffee.com/&lt;your-bmc-link&gt;) <!-- TODO: replace with your real link -->
+**Support:** If Sorbus is useful to you, consider supporting development — [Support on Patreon](https://www.patreon.com/nour_dev/posts/buy-me-coffee-162723597)
 
 ---
 
@@ -579,5 +579,4 @@ Released under the [MIT License](LICENSE). © Nour Nada.
 
 If Sorbus saves you a subscription or just makes your life easier, consider supporting me:
 
-<!-- TODO: replace <your-bmc-link> with your real Buy Me a Coffee link -->
-☕ [Buy Me a Coffee](https://www.buymeacoffee.com/&lt;your-bmc-link&gt;)
+☕ [Support on Patreon](https://www.patreon.com/nour_dev/posts/buy-me-coffee-162723597)
