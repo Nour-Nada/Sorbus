@@ -74,7 +74,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cors({ origin: process.env.CORS_ORIGIN, credentials: true }));
 app.use(cookieParser());
 
-const REFRESH_COOKIE_OPTIONS = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'Strict', maxAge: 7 * 24 * 60 * 60 * 1000 };
+const REFRESH_COOKIE_OPTIONS = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 }; //SameSite=None in prod so the refresh cookie survives a cross-site frontend↔gateway split (e.g. two onrender.com subdomains); requires Secure, which is on in prod
 const signRefreshToken = (userId, username, access) => jwt.sign({ userId, username, access }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '7d' }); //Signs a long-lived refresh token
 
 

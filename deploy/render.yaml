@@ -1,0 +1,58 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Render Blueprint for the Sorbus WEB TIER (Node gateway + React frontend).
+# The C++ file server is NOT deployed here — it runs natively on your home
+# machine (see the main README). This Blueprint only stands up the cloud tier.
+#
+# One-click: use the "Deploy to Render" button in the README, or in the Render
+# dashboard create a Blueprint and set the Blueprint path to  deploy/render.yaml
+#
+# After the first deploy, Render assigns each service a URL. You must paste them
+# into two variables and redeploy (they can't be known ahead of time):
+#   • gateway  CORS_ORIGIN   ← the frontend (static site) URL
+#   • frontend VITE_API_URL  ← the gateway (web service) URL
+# See the README "Deploying the web tier to Render" section for the walkthrough.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── Node.js API gateway (Docker web service) ───────────────────────────────
+  - type: web
+    name: sorbus-gateway
+    runtime: docker
+    dockerfilePath: ./Docker/Dockerfile.node
+    dockerContext: .
+    healthCheckPath: /
+    envVars:
+      # Auto-generated strong secrets — you never see or set these.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REFRESH_TOKEN_SECRET
+        generateValue: true
+      # Must match FILEAPP_API_KEY on your home C++ server (Render prompts you).
+      - key: API_KEY
+        sync: false
+      # Your Cloudflare tunnel URL pointing at the home C++ server.
+      - key: C_Server_Route
+        sync: false
+      # The frontend's URL — paste it in after the first deploy (see header note).
+      - key: CORS_ORIGIN
+        sync: false
+      # Enables Secure + SameSite=None cookies for the cross-site split.
+      - key: NODE_ENV
+        value: production
+
+  # ── React frontend (static site, served on Render's CDN) ───────────────────
+  - type: web
+    name: sorbus-web
+    runtime: static
+    buildCommand: cd Frontend/Sorbus && npm ci && npm run build
+    staticPublishPath: Frontend/Sorbus/dist
+    envVars:
+      # The gateway's URL — paste it in after the first deploy (see header note).
+      # Build-time var: after setting it, trigger a redeploy so Vite rebuilds.
+      - key: VITE_API_URL
+        sync: false
+    routes:
+      # Single-page-app fallback so deep links / refreshes resolve to index.html.
+      - type: rewrite
+        source: /*
+        destination: /index.html

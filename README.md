@@ -123,10 +123,15 @@ Sorbus is hardware- and host-agnostic, but if you're starting from scratch, here
 
 **🏠 Home tier (file server + database).** Any always-on machine that can hold your files. A **Raspberry Pi 4 or 5** is the sweet spot — inexpensive, low-power, and more than enough for personal use. But you don't need to buy anything: an **old laptop or an unused desktop/PC** makes a great Sorbus host too — it already has a disk, and a laptop even comes with a built-in battery backup. Attach extra storage if you need it and point your starting folder (`FILEAPP_FILE_LOCATION`) at it.
 
-**☁️ Cloud tier (web UI + gateway).** Any small VPS that can run Docker is enough — the gateway and frontend are lightweight. <!-- TODO: add my recommended cloud provider/plan here once I've chosen one. -->
-> _Recommended provider: coming soon._
+**☁️ Cloud tier (web UI + gateway).** The gateway and frontend are lightweight, so almost any container host works. Crucially, the cloud tier is **stateless** — all your data lives at home on the C++ server — so a host that sleeps when idle loses nothing.
 
-**🔗 Connecting the two — Cloudflare Tunnel.** A Cloudflare Tunnel is how the cloud server reaches the C++ server at home **without exposing your home IP or opening any inbound ports**. Your home machine runs a small `cloudflared` agent that makes an **outbound-only** connection to Cloudflare's edge. You map a hostname (e.g. `cpp.yourdomain.com`) to your local C++ server, and Cloudflare securely routes traffic for that hostname back down the tunnel. That hostname becomes your `CPP_SERVER_URL`.
+**Recommended: [Render](https://render.com).** It has a genuine free tier (no credit card), builds straight from the Dockerfiles in this repo, and can host React as a free static site. Because the cloud tier is stateless, the free tier's spin-down (a brief cold start after inactivity) costs you nothing but a few seconds — move to an always-on plan (~$7/mo) if you'd rather avoid it.
+
+**Other good options:**
+- **[Google Cloud Run](https://cloud.google.com/run)** — the most generous *perpetual* free tier and fast scale-to-zero, if you're comfortable with GCP's heavier setup (billing account, Artifact Registry, the `gcloud` CLI). One caveat for a file app: Cloud Run enforces a per-request timeout (max 60 min), and uploads/downloads stream *through* the gateway — so very large or slow transfers could hit that ceiling. Persistent hosts don't have this limit.
+- **[Railway](https://railway.app)** — the smoothest developer experience and no cold starts, but no free tier (~$5/mo minimum, credit card required).
+
+**🔗 Connecting the two — Cloudflare Tunnel.** A Cloudflare Tunnel is how the cloud server reaches the C++ server at home **without exposing your home IP or opening any inbound ports**. Your home machine runs a small `cloudflared` agent that makes an **outbound-only** connection to Cloudflare's edge. You map a hostname (e.g. `cpp.yourdomain.com`) to your local C++ server, and Cloudflare securely routes traffic for that hostname back down the tunnel. That hostname becomes your `C_Server_Route`.
 
 - 📖 [Cloudflare Tunnel — overview](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
 - 🚀 [Create your first tunnel (step-by-step)](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/get-started/create-remote-tunnel/)
@@ -164,7 +169,7 @@ bash setup.sh
   | `FILEAPP_ROOT_LIMIT` | Optional boundary the storage path must stay within. **Leave blank for full filesystem access** (the whole home machine). |
   | `REGISTER_KEY` | The signup key you share with people you want to allow to register |
   | `CORS_ORIGIN` | The exact URL users type in their browser (e.g. `https://sorbus.yourdomain.com`) |
-  | `CPP_SERVER_URL` | The Cloudflare tunnel URL pointing at the C++ server |
+  | `C_Server_Route` | The Cloudflare tunnel URL pointing at the C++ server |
 
 It writes two files: **`.env.local`** (home machine — read directly by the native C++ server) and **`.env.cloud`** (cloud server). Both are git-ignored — never commit them. Copy `.env.cloud` to your cloud server.
 
@@ -174,11 +179,44 @@ It writes two files: **`.env.local`** (home machine — read directly by the nat
 
 Build and run the C++ server with the variables from `.env.local` — see [Running the C++ Server](#running-the-c-server) below for the exact per-OS commands.
 
-### Step 3 — Start the cloud server (Node.js + React)
+### Step 3 — Start the cloud tier (Node.js + React)
+
+Pick whichever host you like — the cloud tier is stateless, so nothing here holds your data.
+
+**Any Docker host (VPS, your own server):**
 
 ```bash
 docker compose -f docker-compose.cloud.yml --env-file .env.cloud up -d
 ```
+
+**Or one-click to Render** (recommended for most people — see [Recommended Setup](#recommended-setup)):
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Nour-Nada/Sorbus&blueprintPath=deploy/render.yaml)
+
+<details>
+<summary><strong>Render walkthrough (step by step)</strong></summary>
+
+The button uses a Blueprint that provisions both cloud services for you: the **gateway** (a Docker web service) and the **React frontend** (a free static site). It auto-generates `JWT_SECRET` and `REFRESH_TOKEN_SECRET` — you never touch those.
+
+> **Already ran `setup.sh`?** You don't run it again for Render — the `.env.cloud` it produced is only for the "any Docker host" option above. For Render you enter values in the dashboard instead. The **only** value you carry over is `API_KEY`: use the *same* one that's in your `.env.local`/`.env.cloud` so it matches your home C++ server. The JWT secrets are generated fresh by Render and don't need to match anything, so regenerating them is harmless.
+
+> ⚠️ **Expect a two-step setup:** `CORS_ORIGIN` and `VITE_API_URL` can only be filled in **after** the first deploy (steps 4–5 below), because they're each other's auto-assigned URLs. This is normal — not a mistake.
+
+1. **Click the button** (or in Render: **New → Blueprint**, connect this repo, and set the *Blueprint path* to `deploy/render.yaml`).
+2. Render creates **`sorbus-gateway`** and **`sorbus-web`** and prompts you for the two secrets only you know:
+   - **`API_KEY`** — the *same* value as `FILEAPP_API_KEY` on your home C++ server.
+   - **`C_Server_Route`** — your Cloudflare tunnel URL (the one pointing at the C++ server).
+   - Leave `CORS_ORIGIN` and `VITE_API_URL` blank for now.
+3. Let it deploy. Render assigns each service a URL, e.g. `https://sorbus-gateway.onrender.com` and `https://sorbus-web.onrender.com`.
+4. **Wire the two URLs together** (they can't be known before the services exist):
+   - On **`sorbus-gateway`** → Environment → set **`CORS_ORIGIN`** to the **`sorbus-web`** URL.
+   - On **`sorbus-web`** → Environment → set **`VITE_API_URL`** to the **`sorbus-gateway`** URL.
+5. **Redeploy the frontend** (`sorbus-web` → Manual Deploy). `VITE_API_URL` is baked in at build time, so it needs one rebuild to take effect. The gateway picks up `CORS_ORIGIN` automatically on its next restart.
+6. Open the **`sorbus-web`** URL — that's your app. Make sure your home C++ server is running and the tunnel is up, then sign up (first account = owner).
+
+**Free-tier note:** services sleep after ~15 min idle, so the first request after a lull takes ~30–60s to wake. Because the cloud tier is stateless, nothing is lost — upgrade to an always-on instance if the cold start bothers you.
+
+</details>
 
 ### Step 4 — First run
 
@@ -529,7 +567,7 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for ho
 
 ## Reporting Issues
 
-Found a bug? Open a [GitHub issue](../../issues/new/choose) using the bug report template. Include what you were doing, what you expected, what happened, and any relevant logs (the C++ server logs to the terminal / `docker logs`).
+Found a bug? Open a [GitHub issue](../../issues/new/choose) using the bug report template. Include what you were doing, what you expected, what happened, and any relevant logs (the C++ server writes route logs to `server_output.txt`).
 
 For questions, ideas, or general discussion, open a GitHub issue — all communication goes through GitHub.
 

@@ -8,8 +8,8 @@ services:
       dockerfile: Docker/Dockerfile.node
     environment:
       - API_KEY=${API_KEY:?API_KEY must be set in .env.cloud — must match .env.local}
-      # URL of the C++ server on the Pi, reachable via Cloudflare tunnel
-      - C_Server_Route=${CPP_SERVER_URL:?CPP_SERVER_URL must be set in .env.cloud}
+      # URL of the C++ server at home, reachable via Cloudflare tunnel
+      - C_Server_Route=${C_Server_Route:?C_Server_Route must be set in .env.cloud}
       # Must match what users type in their browser (used for CORS)
       - CORS_ORIGIN=${CORS_ORIGIN:?CORS_ORIGIN must be set in .env.cloud}
       - PORT=3000

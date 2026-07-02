@@ -7,12 +7,12 @@ Sorbus is a self-hosted personal cloud storage system. Users run the C++ server 
 **Three-tier architecture:**
 1. **C++ HTTP server** (`C++_Server/server.cpp`) — RESTful file server using cpp-httplib. Handles all file operations and user management. Stores metadata in SQLite. Runs locally on the host machine with direct filesystem access.
 2. **Node.js API gateway** (`Node_Backend/index.js`) — Express 5 gateway between the frontend and C++ server. Handles JWT auth, bcrypt, rate limiting, CORS, and request proxying. Hosted online.
-3. **React frontend** (`Frontend/Sorbus/`) — Vite + React 18 SPA. File browser with tree/shelf/ledger views, upload progress, and account management. Served via nginx alongside Node.js.
+3. **React frontend** (`Frontend/Sorbus/`) — Vite + React SPA. File browser with tree/shelf/ledger views, upload progress, and account management. Built to static files, served by nginx (Docker) or a static host (e.g. Render).
 
 **Deployment split:**
-- Local machine (Pi): C++ server + SQLite (`Docker/docker-compose.local.yml`)
-- Cloud server: Node.js + React/nginx (`Docker/docker-compose.cloud.yml`)
-- Node.js reaches C++ via Cloudflare tunnel (`C_Server_Route` env var)
+- Home machine: C++ server + SQLite, run **natively — NOT containerized** — so it has full access to the whole filesystem (a container's isolation defeats that goal). An optional containerized mode (jailed to one mounted folder) lives in `Docker/optional-local-container/`.
+- Cloud server: Node.js + React/nginx (`Docker/docker-compose.cloud.yml`), or one-click to **Render** via the Blueprint at `deploy/render.yaml` (recommended).
+- Node.js reaches C++ via Cloudflare tunnel (`C_Server_Route` env var).
 
 ---
 
@@ -71,15 +71,17 @@ Frontend/Sorbus/src/
     UploadToast.jsx           — bottom-right upload progress toast, auto-dismisses after 4s
 
 Docker/
-  docker-compose.local.yml    — C++ server only (run on Pi)
   docker-compose.cloud.yml    — Node.js + React (run on cloud server)
-  Dockerfile.cpp              — multi-stage: gcc:14 compiles, debian:slim runs
   Dockerfile.node             — node:lts-alpine, production deps only
   Dockerfile.react            — multi-stage: vite build, then nginx:alpine serves
   nginx.conf.template         — nginx config; ${NODE_BACKEND_URL} substituted at startup
-  .env.local.example          — template for Pi env variables
+  .env.local.example          — template for native C++ env vars (FILEAPP_* names)
   .env.cloud.example          — template for cloud server env variables
   setup.sh                    — generates .env.local + .env.cloud interactively
+  optional-local-container/   — OPTIONAL containerized C++ (Dockerfile.cpp, docker-compose.local.yml, own README + .env.example)
+
+deploy/
+  render.yaml                 — Render Blueprint: gateway (Docker web service) + React (static site)
 ```
 
 ---
@@ -106,7 +108,7 @@ server_info — singleton row (id=1): server_status, register_key, file_location
 |---|---|---|---|
 | `FILEAPP_API_KEY` | **Yes** | — | Shared secret checked on every request. No default — empty if unset (Docker Compose's `${API_KEY:?}` guard refuses to start on empty; the server also logs a warning). |
 | `FILEAPP_REGISTER_KEY` | **Yes** | — | Written to DB on startup. Server calls `std::exit(1)` if not set. |
-| `FILEAPP_FILE_LOCATION` | No | `""` | Storage path. Empty = not configured. Set via Account page after first boot. |
+| `FILEAPP_FILE_LOCATION` | No | `""` | **Starting** folder shown on first load — NOT a boundary. Owner can re-point storage anywhere (allowed by `ROOT_LIMIT`) via the Account page. Empty = not configured. |
 | `FILEAPP_DB_PATH` | No | `sorbus.db` | Path to SQLite database file. |
 | `FILEAPP_MAX_FILES` | No | `1000000` | Max non-folder files before uploads return 507. |
 | `FILEAPP_ROOT_LIMIT` | No | `""` | Boundary path the storage path must stay within. Empty = full filesystem access. Enforced in the location-change route; returns `OUTSIDE_ROOT_LIMIT` error string if violated. |
@@ -172,7 +174,7 @@ All routes require a `key` header matching `FILEAPP_API_KEY`. Checked in `set_pr
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | GET | `/api/features/location` | key only | Returns current `FILE_LOCATION` string (may be empty). |
-| PATCH | `/api/features/location/:user_id` | key only | Owner-only. Validates path (must be absolute, non-root, existing directory). Calls `reinitialize_files`. |
+| PATCH | `/api/features/location/:user_id` | key only | Owner-only. Path must be absolute + an existing directory (top-level dirs like `/storage` are allowed — the old "non-root" restriction was removed). If `FILEAPP_ROOT_LIMIT` is set, the path must be within it, else 403 `OUTSIDE_ROOT_LIMIT`. Calls `reinitialize_files`. |
 | PATCH | `/api/features/reinitialize/:user_id` | key only | Owner-only. Calls `reinitialize_files`. |
 
 ---
@@ -202,6 +204,8 @@ All routes require a `key` header matching `FILEAPP_API_KEY`. Checked in `set_pr
 
 **`verifyUserId(paramName)`:** Checks `parseInt(req.params[paramName]) !== req.userId`.
 - Mismatch → 403 `"Access denied: user ID mismatch."` ⚠️ **Do not change this string — frontend checks it to redirect to `/login`.**
+
+**Proxy & refresh cookie:** `app.set('trust proxy', 1)` — the gateway runs behind nginx/Render's proxy, so `express-rate-limit` needs this to read the real client IP from `X-Forwarded-For` (otherwise it throws a ValidationError). The 7-day refresh cookie is `httpOnly` + `Secure` (in production) and `SameSite=None` in production / `Strict` in dev — `None` is required because the Render frontend and gateway live on different `*.onrender.com` subdomains (cross-site).
 
 **Download token flow:**
 - `downloadTokens` is an in-memory `Map` — not persisted, cleared on restart.
@@ -253,7 +257,7 @@ All routes require a `key` header matching `FILEAPP_API_KEY`. Checked in `set_pr
 
 | Variable | Required | Description |
 |---|---|---|
-| `VITE_API_URL` | No | Base URL for axios requests. Defaults to `''` (same-origin). Leave empty in Docker — nginx proxies `/api/*` to Node.js internally. Set if React and Node.js are on different domains. |
+| `VITE_API_URL` | No | Base URL for axios requests (build-time). Defaults to `''` (same-origin). Leave empty for the nginx/Docker setup (nginx proxies `/api/*`). **Set to the gateway URL for the Render static-site deploy**, where the frontend calls the gateway directly cross-origin. |
 
 ---
 
@@ -290,24 +294,27 @@ AccountProvider > AuthProvider > FileProvider > Routes
 
 ---
 
-## Containerization
+## Deployment & Containerization
 
-**C++ Dockerfile** (`Dockerfile.cpp`) — multi-stage. Stage 1: `gcc:14` compiles `server.cpp` with all vendored libraries (`g++ -std=c++17 -O2`). Include paths: `-I header_libs/sqlite3` (for `<sqlite3.h>`) and `-I header_libs` (for `<SQLiteCpp/...>`). Stage 2: `debian:bookworm-slim` — copies only the binary. No compiler or source in final image.
+**C++ server — native (default), NOT containerized.** Build from the vendored sources and run the binary directly (`.env.local` is auto-loaded via `load_dotenv`). Compile the **C** files (`sqlite3.c`, `miniz.c`) with **gcc** and the **C++** (`server.cpp` + SQLiteCpp `.cpp`) with **g++**, then link — compiling the C files with g++ fails, because C++ rejects SQLite's implicit `void*` conversions. Link flags include `-lpthread -ldl -lm`. See the README "Running the C++ Server" for exact per-OS commands; on Windows, build the Visual Studio solution.
+
+**Optional C++ container** (`Docker/optional-local-container/Dockerfile.cpp`) — only for users who want the server sandboxed to one mounted folder. Multi-stage: stage 1 `gcc:14` compiles (gcc for the C libs, g++ for the rest); stage 2 **`debian:trixie-slim`** — this must match the builder's Debian release so glibc/libstdc++ versions line up (`bookworm-slim` is too old and the binary won't start). Ships only the binary.
 
 **Node.js Dockerfile** (`Dockerfile.node`) — `node:lts-alpine`. `npm ci --omit=dev` skips nodemon. Runs `node index.js` directly (not `npm start`).
 
-**React Dockerfile** (`Dockerfile.react`) — multi-stage. Stage 1: `node:lts-alpine` runs `vite build`. Stage 2: `nginx:alpine` serves `dist/`. `nginx.conf.template` placed in `/etc/nginx/templates/` — nginx substitutes `${NODE_BACKEND_URL}` automatically at container startup.
+**React Dockerfile** (`Dockerfile.react`) — multi-stage. Stage 1: `node:lts-alpine` runs `vite build`. Stage 2: `nginx:alpine` serves `dist/`. `nginx.conf.template` placed in `/etc/nginx/templates/` — nginx substitutes `${NODE_BACKEND_URL}` at container startup.
 
 **nginx** proxies `/api/*` to `http://node-backend:3000` (internal Docker network). `try_files $uri $uri/ /index.html` supports React Router. `client_max_body_size 0` and `proxy_request_buffering off` allow large file streaming.
 
 **Running:**
 ```bash
-# On the Pi — run setup.sh first to generate .env files
-cd Docker && bash setup.sh
-docker compose -f docker-compose.local.yml --env-file .env.local up -d
+# Home machine — generate config, then build + run the C++ server NATIVELY
+cd Docker && bash setup.sh          # writes Docker/.env.local (FILEAPP_* vars) + .env.cloud
+# ...then build & run the binary per the README "Running the C++ Server"
 
-# On the cloud server
+# Cloud tier — either a Docker host:
 docker compose -f docker-compose.cloud.yml --env-file .env.cloud up -d
+# ...or one-click to Render using deploy/render.yaml (see the README).
 ```
 
 ---
