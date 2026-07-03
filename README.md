@@ -257,11 +257,17 @@ On macOS use the same commands (Apple Clang provides `gcc`/`g++`); drop `-ldl` i
 
 To keep it running across reboots, wrap it in a **systemd** service (Linux) or a **launchd** plist (macOS).
 
+> _These commands are AI-generated and have not been personally tested by the author — they may need small tweaks for your specific setup._
+
 ### Windows
 
 **Build:** open `C++_Server/C++_Server_VS.sln` in **Visual Studio** and build (x64, Release). That produces `sorbus-server.exe` under `x64/Release/`. Windows may block locally-built binaries — see the Smart App Control note below.
 
-> **⚠️ Smart App Control:** Windows may block the compiled binary because it is unsigned — locally-built executables have no code-signing certificate, so Windows cannot verify their publisher. If you hit this, the simplest fix is to run the server through **WSL2** instead: install Ubuntu from the Microsoft Store, then follow the Linux/macOS compile commands above inside WSL2. SAC does not apply to WSL2 processes.
+> **⚠️ Smart App Control:** Windows may block the compiled binary because it is unsigned — locally-built executables have no code-signing certificate, so Windows cannot verify their publisher. If this happens, you have a few options:
+>
+> - **WSL2** — Install Ubuntu from the Microsoft Store and build/run the server inside WSL2 using the Linux commands above. SAC does not apply to WSL2 processes, so this sidesteps the problem entirely.
+> - **Developer Mode** — Go to *Settings → System → For Developers* and enable Developer Mode. This allows unsigned local binaries to run without touching SAC itself (although this dosn't always work).
+> - **Disable Smart App Control** — *Settings → Windows Security → App & Browser Control → Smart App Control → Off*. ⚠️ **Warning: this is permanent.** Once SAC is disabled it cannot be re-enabled — you would need to reinstall Windows to get it back. Only do this if you fully accept that trade-off.
 
 Alternatively build with **MinGW-w64** using the same two-step `gcc`/`g++` commands as above (omit `-ldl`), though that binary will have the same signing issue.
 
@@ -276,6 +282,8 @@ Get-Content ..\Docker\.env.local | Where-Object { $_ -and $_ -notmatch '^\s*#' }
 ```
 
 Use forward slashes in `FILEAPP_FILE_LOCATION` / `FILEAPP_ROOT_LIMIT` (e.g. `C:/Users/you/Documents`). To run on boot, register it as a scheduled task (**Task Scheduler** → "At log on / At startup").
+
+> _These commands are AI-generated and have not been personally tested by the author — they may need small tweaks for your specific setup._
 
 ### What `FILEAPP_ROOT_LIMIT` does
 
@@ -488,6 +496,8 @@ FILEAPP_REGISTER_KEY=dev-register-key ./sorbus-server
 ```
 
 > `FILEAPP_REGISTER_KEY` is mandatory — the server exits immediately without it. On Windows, build in Visual Studio (Smart App Control may block locally-built binaries — see the Windows section above).
+
+> _These commands are AI-generated and have not been personally tested by the author — they may need small tweaks for your specific setup._
 
 **2. Node.js gateway:**
 
