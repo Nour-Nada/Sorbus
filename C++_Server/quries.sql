@@ -1,89 +1,92 @@
---IMPORTANT SQL QUERIES FOR C++ SERVER APPLICATION--
+-- SQL reference for the Sorbus SQLite database (sorbus.db)
+-- SQLite in WAL mode; schema is created automatically by the C++ server on startup.
+-- These queries are provided as a reference for manual inspection and development.
 
 
---Important Notes on the SQL Queries--
---1. These queries are designed to work with a PostgreSQL database.
---2. Replace placeholder values (e.g., '-1', 'new_file_name.txt') with actual values when executing the queries.
---3. More SQL queries may be needed but these are probably some important ones that will need to be used frequently.
-
-
-
---Creating the Database--
-
-CREATE DATABASE sorbus;
-
-
---Creating the Tables--
+-- ============================================================
+-- Schema
+-- ============================================================
 
 CREATE TABLE IF NOT EXISTS users (
-    id BIGSERIAL PRIMARY KEY,
-    username TEXT NOT NULL UNIQUE,
-    email TEXT NOT NULL UNIQUE,
-    password TEXT NOT NULL,
-    access TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT    NOT NULL UNIQUE,
+    email    TEXT    NOT NULL UNIQUE,
+    password TEXT    NOT NULL,          -- bcrypt hash, never plaintext
+    access   TEXT    NOT NULL,          -- 'owner' | 'editor' | 'viewer'
+    created_at TEXT  DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS files (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    file_name TEXT NOT NULL,
-    file_location TEXT NOT NULL,
-    file_size BIGINT NOT NULL,
-    file_extension TEXT,
-    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_files_users
-        FOREIGN KEY(user_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id        INTEGER NOT NULL,
+    file_name      TEXT    NOT NULL,
+    file_location  TEXT    NOT NULL,    -- relative path from FILE_LOCATION root, '/' separated; '' = root
+    file_size      INTEGER NOT NULL,    -- bytes; -1 for folders
+    file_extension TEXT,                -- 'folder' for folders
+    uploaded_at    TEXT    DEFAULT (datetime('now')),
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS server_info (
-    id SMALLINT PRIMARY KEY DEFAULT 1,
+    id            INTEGER PRIMARY KEY DEFAULT 1,
     server_status INTEGER NOT NULL,
-    register_key TEXT NOT NULL,
-    file_location TEXT NOT NULL DEFAULT '',
-    CONSTRAINT single_row CHECK (id = 1)
+    register_key  TEXT    NOT NULL,
+    file_location TEXT    NOT NULL DEFAULT ''  -- current storage root path
 );
 
 
+-- ============================================================
+-- Inspect data
+-- ============================================================
 
---Secleting Data--
+SELECT * FROM users;
+SELECT * FROM files;
+SELECT * FROM server_info;
 
---Basic Select Queries--
-SELECT * FROM users; --Retrieving all users--
-SELECT * FROM files; --Retrieving all files--
-SELECT * FROM server_info; --Retrieving server information--
+-- Files with their owner's username
+SELECT u.username, f.file_name, f.file_location, f.file_extension, f.file_size, f.id
+FROM users u
+INNER JOIN files f ON u.id = f.user_id
+ORDER BY f.file_location ASC;
 
---Table Joins--
-SELECT * FROM users INNER JOIN files ON users.id = files.user_id; --Retrieving all users with their files--
-SELECT users.id AS user_id, files.file_name, files.file_location, files.file_extension, files.id FROM users INNER JOIN files ON users.id = files.user_id ORDER BY files.file_location ASC; --Retrieving specific file information for all users--
+-- Files in a specific folder (empty string = root)
+SELECT * FROM files WHERE file_location = '';
 
---Conditional Select Queries--
-SELECT * FROM files WHERE user_id = -1; --Retrieving all files of particular user--
-SELECT * FROM files WHERE file_location = '/example_path'; --Retrieving file by location--
-
-
-
---Updating Data--
-UPDATE files SET file_name = 'new_file_name.txt' WHERE id = -1; --Updating file name of particular file--
-UPDATE files SET file_location = '/new/location/' WHERE id = -1; --Updating file location of particular file--
-UPDATE server_info SET storage_space_remaining = -1 WHERE id = -1; --Updating storage space remaining--
-UPDATE server_info SET server_status = -1 WHERE id = -1; --Updating server status--
+-- All files owned by a specific user
+SELECT * FROM files WHERE user_id = 1;
 
 
---Deleting Data--
-DELETE FROM files WHERE id = -1; --Deleting particular file--
-DELETE FROM users WHERE id = -1; --Deleting particular user and all their files--
-DELETE FROM files WHERE file_location = '/example_path'; --Deleting file by location--
+-- ============================================================
+-- Modify data
+-- ============================================================
+
+-- Rename a file
+UPDATE files SET file_name = 'new_name.txt' WHERE id = 1;
+
+-- Move a file
+UPDATE files SET file_location = 'some/subfolder' WHERE id = 1;
+
+-- Change a user's access level
+UPDATE users SET access = 'editor' WHERE id = 2;
+
+-- Set the storage root path
+UPDATE server_info SET file_location = 'C:/path/to/your/files' WHERE id = 1;
+
+-- Delete a file record (does not remove the file from disk)
+DELETE FROM files WHERE id = 1;
+
+-- Delete a user and all their file records (cascade)
+DELETE FROM users WHERE id = 2;
 
 
---Inserting Data--
-INSERT INTO users (email, password) VALUES ('test', 'password123'); --Inserting new user--
-INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES (-1, 'example.txt', '/example_path', 1024, '.txt'); --Inserting new file--
-INSERT INTO server_info (server_status, register_key, storage_space_remaining, file_location) VALUES (-1, 'regkey123', 1000, 'C:/Users/nour2/Videos/Test'); --Inserting server information--
+-- ============================================================
+-- Bootstrap / reset
+-- ============================================================
 
+-- Seed the server_info singleton (run once if the row is missing)
+INSERT OR IGNORE INTO server_info (id, server_status, register_key, file_location)
+VALUES (1, 0, 'your-register-key', '');
 
---Inserting Data Tests--
-INSERT INTO users (email, username, password, access) VALUES ('test', 'testuser', 'password123', 'owner'); --Inserting new user--
-INSERT INTO server_info (server_status, register_key, file_location) VALUES (200, '123456', 'C:/Users/nour2/Videos/Test'); --Inserting server information--
+-- Clear all file records and re-index from the C++ server
+-- (use the /api/features/reinitialize endpoint instead of doing this manually)
+DELETE FROM files;
