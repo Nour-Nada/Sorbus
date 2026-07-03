@@ -354,7 +354,7 @@ app.post("/api/files/upload/:user_id", limiter, verifyJWT, verifyUserId(), async
     response.data.pipe(res); //Pipes the data from the frontend into the C++ server
 
   } catch (error) {
-    console.error('[/api/files/upload]', error.response?.status ?? error.code, error.response?.data || error.message);
+    console.error('[/api/files/upload]', error.response?.status ?? error.code, error.message);
     if (error.response) {
       res.status(error.response.status);
       error.response.data.pipe(res); //Pipes the error stream from the C++ server

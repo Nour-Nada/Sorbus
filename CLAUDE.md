@@ -110,7 +110,7 @@ server_info — singleton row (id=1): server_status, register_key, file_location
 | `FILEAPP_REGISTER_KEY` | **Yes** | — | Written to DB on startup. Server calls `std::exit(1)` if not set. |
 | `FILEAPP_FILE_LOCATION` | No | `""` | **Starting** folder shown on first load — NOT a boundary. Owner can re-point storage anywhere (allowed by `ROOT_LIMIT`) via the Account page. Empty = not configured. |
 | `FILEAPP_DB_PATH` | No | `sorbus.db` | Path to SQLite database file. |
-| `FILEAPP_MAX_FILES` | No | `1000000` | Max non-folder files before uploads return 507. |
+| `FILEAPP_MAX_FILES` | No | `5000000` | Max non-folder files before uploads return 507. |
 | `FILEAPP_ROOT_LIMIT` | No | `""` | Boundary path the storage path must stay within. Empty = full filesystem access. Enforced in the location-change route; returns `OUTSIDE_ROOT_LIMIT` error string if violated. |
 
 ---

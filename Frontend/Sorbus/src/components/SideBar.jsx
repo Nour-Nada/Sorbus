@@ -26,7 +26,7 @@ function SideBar() {
   const [storageUsed, setStorageUsed] = useState(null);
 
   const { username, access } = useAccountContext();
-  const { setCurrentPath, uploadFiles, storageReady } = useFileContext();
+  const { setCurrentPath, loadFolder, uploadFiles, storageReady } = useFileContext();
   const { logout } = useAuthContext();
   const navigate = useNavigate();
 
@@ -94,7 +94,7 @@ function SideBar() {
         <div className="side-bar-files">
           <p className="side-bar-section-label">FILES</p>
           <div className="side-bar-tree">
-            <FolderTree onSelect={(path) => setCurrentPath(path.split('/'))} />
+            <FolderTree onSelect={(path) => { setCurrentPath(path.split('/')); loadFolder(path); }} />
           </div>
         </div>
 

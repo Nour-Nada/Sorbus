@@ -259,7 +259,7 @@ To keep it running across reboots, wrap it in a **systemd** service (Linux) or a
 
 ### Windows
 
-**Build:** open `C++_Server/C++_Server_VS.sln` in **Visual Studio** and build (x64, Release). That produces `sorbus-server.exe` under `x64/Release/`. Developer Mode must be on.
+**Build:** open `C++_Server/C++_Server_VS.sln` in **Visual Studio** and build (x64, Release). That produces `sorbus-server.exe` under `x64/Release/`. Windows may block locally-built binaries — see the Smart App Control note below.
 
 > **⚠️ Smart App Control:** Windows may block the compiled binary because it is unsigned — locally-built executables have no code-signing certificate, so Windows cannot verify their publisher. If you hit this, the simplest fix is to run the server through **WSL2** instead: install Ubuntu from the Microsoft Store, then follow the Linux/macOS compile commands above inside WSL2. SAC does not apply to WSL2 processes.
 
@@ -442,7 +442,7 @@ All C++ routes require a `key` header matching `FILEAPP_API_KEY`. The Node gatew
 | `FILEAPP_FILE_LOCATION` | No | `""` | **Starting** folder shown on first load. Not a boundary — the owner can re-point storage from the Account page. |
 | `FILEAPP_ROOT_LIMIT` | No | `""` | Boundary the storage path must stay within. **Empty = no limit** (full filesystem access). |
 | `FILEAPP_DB_PATH` | No | `sorbus.db` | Path to the SQLite file. |
-| `FILEAPP_MAX_FILES` | No | `1000000` | Max files before uploads return 507. |
+| `FILEAPP_MAX_FILES` | No | `5000000` | Max files before uploads return 507. |
 
 </details>
 
@@ -487,7 +487,7 @@ g++ -std=c++17 -O2 -I header_libs/sqlite3 -I header_libs \
 FILEAPP_REGISTER_KEY=dev-register-key ./sorbus-server
 ```
 
-> `FILEAPP_REGISTER_KEY` is mandatory — the server exits immediately without it. On Windows, build in Visual Studio (Developer Mode must be on; Smart App Control can block local builds).
+> `FILEAPP_REGISTER_KEY` is mandatory — the server exits immediately without it. On Windows, build in Visual Studio (Smart App Control may block locally-built binaries — see the Windows section above).
 
 **2. Node.js gateway:**
 

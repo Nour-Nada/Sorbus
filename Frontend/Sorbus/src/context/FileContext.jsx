@@ -27,13 +27,14 @@ export const FileProvider = ({children}) => {
     const pendingFetches = useRef(new Set()); // prevents duplicate in-flight requests for the same path
     const cacheRef = useRef({}); // synchronous mirror of folderCache for non-stale closure checks
 
-    const loadFolder = useCallback((folderPath) => {
+    const loadFolder = useCallback((folderPath, explicitUserId) => {
         // Fetches direct children of folderPath and stores them in the cache; no-ops if already loading or cached
+        const uid = explicitUserId ?? userId;
         if (pendingFetches.current.has(folderPath) || cacheRef.current[folderPath] !== undefined) return;
-        if (!userId || !isLoggedIn) return;
+        if (!uid) return;
         pendingFetches.current.add(folderPath);
         setLoadingSet(prev => new Set(prev).add(folderPath));
-        axios.get(`/api/files/name/${userId}`, { params: { folder: folderPath } })
+        axios.get(`/api/files/name/${uid}`, { params: { folder: folderPath } })
             .then(res => {
                 const initialized = res.data.initialized !== false;
                 if (folderPath === '') setStorageReady(initialized); // root load tells us if storage is configured
@@ -69,10 +70,16 @@ export const FileProvider = ({children}) => {
     const uploadErrorMessage = (err) => {
         // Maps an upload failure to a short user-facing message
         switch (err.response?.status) {
-            case 409: return 'Already exists';
+            case 409: return 'Duplicate — file already exists';
             case 403: return 'No upload permission';
             case 507: return 'Not enough space';
-            default: return 'Upload failed';
+            case 400: return 'Invalid filename or path';
+            case 401: return 'Session expired — please refresh';
+            case 0:
+            case undefined: return 'No server response';
+            default: return err.response?.data
+                ? String(err.response.data).slice(0, 60)
+                : 'Upload failed';
         }
     };
 
@@ -82,12 +89,19 @@ export const FileProvider = ({children}) => {
         const files = Array.from(fileList);
         if (files.length === 0) return;
         const location = currentPath.join('/');
-        setUploads(files.map(f => ({ name: f.name, progress: 0, status: 'uploading' })));
-        await Promise.allSettled(files.map((file, i) =>
-            axios.post(`/api/files/upload/${userId}`, file, {
+        const existingNames = new Set((cacheRef.current[location] ?? []).map(item => item.name));
+        setUploads(files.map(f => {
+            const sentName = f.name.replace(/[^\x20-\x7E]/g, '_');
+            if (existingNames.has(sentName)) return { name: f.name, progress: 0, status: 'error', error: 'Duplicate — file already exists' };
+            return { name: f.name, progress: 0, status: 'uploading' };
+        }));
+        await Promise.allSettled(files.map((file, i) => {
+            const sentName = file.name.replace(/[^\x20-\x7E]/g, '_');
+            if (existingNames.has(sentName)) return Promise.resolve();
+            return axios.post(`/api/files/upload/${userId}`, file, {
                 headers: {
                     'Content-Type': 'application/octet-stream',
-                    file_name: file.name.replace(/[^\x20-\x7E]/g, '_'),
+                    file_name: sentName,
                     file_location: location,
                 },
                 onUploadProgress: (e) => {
@@ -96,8 +110,8 @@ export const FileProvider = ({children}) => {
                 },
             })
                 .then(() => setUploads(prev => prev.map((u, j) => j === i ? { ...u, progress: 100, status: 'done' } : u)))
-                .catch(err => setUploads(prev => prev.map((u, j) => j === i ? { ...u, status: 'error', error: uploadErrorMessage(err) } : u)))
-        ));
+                .catch(err => setUploads(prev => prev.map((u, j) => j === i ? { ...u, status: 'error', error: uploadErrorMessage(err) } : u)));
+        }));
         invalidateFolder(location);
         loadFolder(location);
     }, [userId, currentPath, invalidateFolder, loadFolder]);

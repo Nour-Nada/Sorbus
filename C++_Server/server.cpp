@@ -67,7 +67,14 @@ static void load_dotenv(const std::string& path) { // Reads KEY=VALUE pairs from
 }
 
 //Global Variables
-const bool ENV_LOADED = (load_dotenv(".env.local"), true); //Loads .env.local into the process environment before any other globals read env vars
+const bool ENV_LOADED = ( // Tries common locations for .env.local so the binary works regardless of which directory it is launched from
+    load_dotenv(".env.local"),
+    load_dotenv("Docker/.env.local"),
+    load_dotenv("../Docker/.env.local"),
+    load_dotenv("../../Docker/.env.local"),
+    load_dotenv("../../../Docker/.env.local"),
+    true
+);
 
 const std::string API_KEY = []() {
     const char* value = std::getenv("FILEAPP_API_KEY");
@@ -98,7 +105,7 @@ void set_file_location(const std::string& new_location) { // Updates the file lo
 
 const int MAX_FILES = []() { //Maximum number of files allowed in the storage location this is to prevent the server from crashing
     const char* value = std::getenv("FILEAPP_MAX_FILES");
-    return (value && *value) ? std::stoi(value) : 1000000;
+    return (value && *value) ? std::stoi(value) : 5000000;
 }(); //The maximum number of files allowed in the storage location
 
 //Database File Path
@@ -296,14 +303,30 @@ void reinitialize_files(SQLite::Database &db, int user_id) { //Reinitializes the
 
     SQLite::Statement insert(db, "INSERT INTO files (user_id, file_name, file_location, file_size, file_extension) VALUES (?, ?, ?, ?, ?)");
 
-    for (auto const& dir_entry : fs::recursive_directory_iterator{ base, fs::directory_options::skip_permission_denied }) { //The for loop to go through every file in the base file path
-        if (current_file_count > MAX_FILES) { //Checks to make sure we have not surpassed the maximum amount of files allowed
+    std::error_code iter_ec;
+    auto dir_it = fs::recursive_directory_iterator(base, fs::directory_options::skip_permission_denied, iter_ec);
+    if (iter_ec) throw std::runtime_error("Cannot open directory: " + iter_ec.message());
+
+    while (dir_it != fs::recursive_directory_iterator()) {
+        if (current_file_count >= MAX_FILES) //Checks to make sure we have not surpassed the maximum amount of files allowed
             throw std::runtime_error("Hit Maximum File Load Count");
-        }
 
         try {
-            std::string file_name;
-            std::string file_location;
+            const auto& dir_entry = *dir_it;
+
+            // Probe each directory before recursing into it. The standard mandates that
+            // increment(ec) sets the iterator to end on failure, so we must prevent the
+            // failure rather than trying to recover from it. If we can't open the dir,
+            // disable_recursion_pending() keeps it as a leaf entry instead of descending.
+            if (dir_entry.is_directory()) {
+                std::error_code probe_ec;
+                fs::directory_iterator(dir_entry.path(), probe_ec);
+                if (probe_ec) dir_it.disable_recursion_pending();
+            }
+
+            std::string file_name = dir_entry.path().filename().string();
+            std::string file_location = fs::relative(dir_entry.path(), base).parent_path().generic_string();
+            if (file_location == ".") file_location = ""; // root-level items: normalise "." to "" to match upload convention
             long long file_size = 0;
             std::string file_extension;
 
@@ -315,8 +338,6 @@ void reinitialize_files(SQLite::Database &db, int user_id) { //Reinitializes the
                 file_extension = dir_entry.path().extension().string();
                 file_size = static_cast<long long>(fs::file_size(dir_entry));
             }
-            file_name = dir_entry.path().filename().string();
-            file_location = fs::relative(dir_entry.path(), base).parent_path().generic_string();
 
             insert.bind(1, user_id);
             insert.bind(2, file_name);
@@ -324,13 +345,13 @@ void reinitialize_files(SQLite::Database &db, int user_id) { //Reinitializes the
             insert.bind(4, static_cast<int64_t>(file_size));
             insert.bind(5, file_extension);
             insert.exec();
-            insert.reset(); //Reset so the statement can be reused for the next file
+            insert.reset();
 
             ++current_file_count;
         }
-        catch (const std::exception& e) {
-            std::cout << "Skipping file (inaccessible): " << dir_entry.path().string() << " - " << e.what() << std::endl;
-        }
+        catch (...) {}
+
+        ++dir_it; // probe above prevents descent-related failures; non-descent advances don't fail
     }
 }
 
@@ -1090,6 +1111,17 @@ int main(void)
             if (file_location == "/") {
                 file_location = "";
             }
+            try { //DB duplicate check before path validation — catches duplicates even if build_safe_path has edge cases
+                SQLite::Statement dup_check(DB_Connection, "SELECT id FROM files WHERE file_name = ? AND file_location = ?");
+                dup_check.bind(1, file_name);
+                dup_check.bind(2, file_location);
+                if (dup_check.executeStep()) {
+                    res.status = 409;
+                    std::cout << UNABLE_TO_UPLOAD_FILE << API_PATH << std::endl;
+                    res.set_content(UNABLE_TO_UPLOAD_FILE, "text/plain");
+                    return;
+                }
+            } catch (const std::exception& e) { std::cout << e.what() << std::endl; }
             fs::path check_path;
             fs::path safe_file_path;
             if (!build_safe_path(file_location, "", check_path) || !build_safe_path(file_location, file_name, safe_file_path)) {
@@ -1104,7 +1136,7 @@ int main(void)
                 res.set_content(UNFOUND_FILE_PATH, "text/plain");
                 return;
             }
-            if (fs::exists(safe_file_path)) { //checks if the file already exists
+            if (fs::exists(safe_file_path)) { //filesystem duplicate check as a fallback
                 res.status = 409;
                 std::cout << UNABLE_TO_UPLOAD_FILE << API_PATH << std::endl;
                 res.set_content(UNABLE_TO_UPLOAD_FILE, "text/plain");

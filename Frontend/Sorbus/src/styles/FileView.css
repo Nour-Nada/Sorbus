@@ -868,7 +868,14 @@
     overflow-y: auto;
     border: 1px solid #1e2640;
     border-radius: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: #3a4460 #111827;
 }
+
+.fv-move-list::-webkit-scrollbar { width: 4px; }
+.fv-move-list::-webkit-scrollbar-track { background: #111827; }
+.fv-move-list::-webkit-scrollbar-thumb { background: #3a4460; border-radius: 2px; }
+.fv-move-list::-webkit-scrollbar-thumb:hover { background: #4e5e80; }
 
 .fv-move-home {
     display: flex;

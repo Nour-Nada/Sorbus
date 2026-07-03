@@ -1,0 +1,862 @@
+
+
+[2026-07-02 15:20:25] Server listening on port 8080 ...
+
+[2026-07-02 15:22:12] 
+Connected to SQLite Database; API Path GET: /api/login
+
+[2026-07-02 15:22:52] 
+Connected to SQLite Database; API Path GET: /api/user/signup
+
+[2026-07-02 15:22:52] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:22:52] 
+
+[2026-07-02 15:23:23] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 15:23:23] 
+
+[2026-07-02 15:23:23] 
+
+[2026-07-02 15:23:40] 
+
+[2026-07-02 15:23:49] 
+Connected to SQLite Database; API Path GET: /api/login
+
+[2026-07-02 15:23:58] 
+Connected to SQLite Database; API Path GET: /api/login
+
+[2026-07-02 15:24:02] 
+Connected to SQLite Database; API Path GET: /api/login
+
+[2026-07-02 15:24:03] 
+Connected to SQLite Database; API Path GET: /api/login
+
+[2026-07-02 15:24:03] 
+Connected to SQLite Database; API Path GET: /api/login
+
+
+[2026-07-02 15:27:51] Server listening on port 8080 ...
+
+[2026-07-02 15:28:11] 
+Connected to SQLite Database; API Path GET: /api/user/signup
+
+[2026-07-02 15:28:11] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:28:11] 
+
+[2026-07-02 15:28:14] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 15:28:14] 
+
+[2026-07-02 15:28:14] 
+
+[2026-07-02 15:28:20] 
+Connected to SQLite Database; API Path PATCH: /api/features/reinitialize
+
+[2026-07-02 15:28:22] 
+
+[2026-07-02 15:28:25] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 15:28:25] 
+
+[2026-07-02 15:28:25] 
+
+[2026-07-02 15:28:29] 
+Connected to SQLite Database; API Path PATCH: /api/features/reinitialize
+
+[2026-07-02 15:28:30] 
+
+[2026-07-02 15:28:44] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:28:44] 
+
+[2026-07-02 15:29:10] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:29:13] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:29:15] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:29:17] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:29:19] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:29:24] 
+Connected to SQLite Database; API Path GET: /api/files/download
+
+[
+[2026-07-02 15:29:362026-07-02 15:29:36] ] 
+
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 15:29:36] 
+
+[2026-07-02 15:29:43] 
+Connected to SQLite Database; API Path PATCH: /api/features/location
+
+[2026-07-02 15:30:10] 
+
+[2026-07-02 15:30:13] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 15:30:13] 
+
+[2026-07-02 15:30:13] 
+
+[2026-07-02 15:30:15] 
+
+[2026-07-02 15:30:16] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:30:16] 
+
+[2026-07-02 15:30:18] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:30:18] 
+
+[2026-07-02 15:30:19] 
+
+[2026-07-02 15:30:19] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 15:30:19] 
+
+[2026-07-02 15:30:23] 
+
+[2026-07-02 15:30:25] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:30:25] 
+Hit Maximum File Load Count
+
+[2026-07-02 15:30:27] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[
+[2026-07-02 15:30:27] 
+2026-07-02 15:30:27] 
+
+[2026-07-02 15:30:35] 
+
+[2026-07-02 15:30:38] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 15:30:38] 
+
+[2026-07-02 15:30:38] 
+
+[2026-07-02 15:30:40] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 15:30:40] 
+
+[2026-07-02 15:30:40] 
+Connected to SQLite Database; API Path GET: /api/files/name
+
+[2026-07-02 15:30:40] 
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:30:57] 
+
+[2026-07-02 15:30:58] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:30:58] 
+
+[2026-07-02 15:31:00] 
+
+[2026-07-02 15:31:00] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 15:31:00] 
+
+[2026-07-02 15:31:01] 
+Connected to SQLite Database; API Path PATCH: /api/features/reinitialize
+
+[2026-07-02 15:31:03] 
+
+[2026-07-02 15:31:05] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:31:05] 
+
+[2026-07-02 15:31:07] 
+
+[2026-07-02 15:31:07] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 15:31:07] 
+
+[2026-07-02 15:31:08] 
+Connected to SQLite Database; API Path PATCH: /api/features/reinitialize
+
+[
+[2026-07-02 15:37:442026-07-02 15:37:44] ] 
+
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 15:37:44] 
+
+[2026-07-02 15:37:44] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:37:46] 
+
+[2026-07-02 15:37:48] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:37:48] 
+
+[2026-07-02 15:37:54] 
+Connected to SQLite Database; API Path GET: /api/login
+
+[2026-07-02 15:37:55] 
+Connected to SQLite Database; API Path GET: /api/login
+
+[2026-07-02 15:37:59] 
+Connected to SQLite Database; API Path GET: /api/login
+
+[2026-07-02 15:37:59] 
+
+[2026-07-02 15:38:03] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 15:38:03] 
+
+[2026-07-02 15:38:03] 
+
+[2026-07-02 15:38:26] 
+Connected to SQLite Database; API Path PATCH: /api/features/location
+Hit Maximum File Load Count
+
+[2026-07-02 15:47:08] 
+
+[2026-07-02 15:47:11] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:47:11] 
+
+
+[2026-07-02 15:47:43] Server listening on port 8080 ...
+
+[2026-07-02 15:47:52] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:47:52] 
+
+[2026-07-02 15:47:53] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 15:47:53] 
+
+[2026-07-02 15:47:53] 
+
+[2026-07-02 15:48:03] 
+Connected to SQLite Database; API Path PATCH: /api/features/location
+
+[2026-07-02 15:48:48] 
+
+[2026-07-02 15:48:48] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:48:51] 
+
+[2026-07-02 15:49:09] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:49:17] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:49:23] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 15:49:23] 
+
+[2026-07-02 15:49:23] 
+
+[2026-07-02 15:49:32] 
+Connected to SQLite Database; API Path PATCH: /api/features/reinitialize
+
+[2026-07-02 15:49:34] 
+Connected to SQLite Database; API Path PATCH: /api/features/reinitialize
+database is locked
+
+[2026-07-02 15:49:37] 
+
+[2026-07-02 15:49:38] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:49:38] 
+
+
+[[2026-07-02 15:49:56] 
+2026-07-02 15:49:56] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 15:49:56] 
+
+[2026-07-02 15:51:29] 
+
+[2026-07-02 15:51:29] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 15:51:29] 
+
+[2026-07-02 15:51:29] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 15:51:32] 
+Connected to SQLite Database; API Path PATCH: /api/features/reinitialize
+
+[2026-07-02 15:52:19] 
+
+[2026-07-02 16:04:29] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:04:34] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:04:39] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:04:40] 
+
+[2026-07-02 16:09:52] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:10:09] 
+Connected to SQLite Database; API Path PATCH: /api/files/name
+
+[2026-07-02 16:10:09] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:10:17] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:10:42] 
+Connected to SQLite Database; API Path GET: /api/files/download
+
+[2026-07-02 16:11:06] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 16:11:06] 
+
+[2026-07-02 16:11:06] 
+
+[2026-07-02 16:11:13] 
+Connected to SQLite Database; API Path PATCH: /api/features/location
+The Requested Path is Outside the Allowed Root;PATCH: /api/features/location
+
+[2026-07-02 16:11:44] 
+
+[2026-07-02 16:11:46] 
+
+[2026-07-02 16:11:46] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:12:07] 
+
+[2026-07-02 16:12:07] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[
+[2026-07-02 16:12:17] 
+2026-07-02 16:12:17] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 16:12:17] 
+
+[2026-07-02 16:12:35] 
+Connected to SQLite Database; API Path PATCH: /api/features/location
+Skipping file (inaccessible): C:/Users/nour2\AppData\Local\Docker\run\dockerEthernetVfkit - status: The file cannot be accessed by the system.: "C:/Users/nour2\AppData\Local\Docker\run\dockerEthernetVfkit"
+Skipping file (inaccessible): C:/Users/nour2\AppData\Local\Docker\run\dockerInference - status: The file cannot be accessed by the system.: "C:/Users/nour2\AppData\Local\Docker\run\dockerInference"
+Skipping file (inaccessible): C:/Users/nour2\AppData\Local\Docker\run\userAnalyticsOtlpHttp.sock - status: The file cannot be accessed by the system.: "C:/Users/nour2\AppData\Local\Docker\run\userAnalyticsOtlpHttp.sock"
+Skipping file (inaccessible): C:/Users/nour2\AppData\Local\docker-secrets-engine\engine.sock - status: The file cannot be accessed by the system.: "C:/Users/nour2\AppData\Local\docker-secrets-engine\engine.sock"
+Skipping file (inaccessible): C:/Users/nour2\AppData\Local\Microsoft\Windows\CloudStore\{f99a4dac-5f0f-4923-9f84-e2a69f2c0498}\windows.data.apps.appleveltileinfo\appleveltilelist\w~{7c5a40ef-a0fb-4bfc-874a-c0f2e0b9fa8e}blackmagic designblackmagic rawblackmagic raw playerblackmagicrawplayer.exe - file_size: The system cannot find the path specified.: "C:/Users/nour2\AppData\Local\Microsoft\Windows\CloudStore\{f99a4dac-5f0f-4923-9f84-e2a69f2c0498}\windows.data.apps.appleveltileinfo\appleveltilelist\w~{7c5a40ef-a0fb-4bfc-874a-c0f2e0b9fa8e}blackmagic designblackmagic rawblackmagic raw playerblackmagicrawplayer.exe"
+recursive_directory_iterator::operator++: The system cannot find the path specified.
+
+[2026-07-02 16:15:17] 
+
+[2026-07-02 16:15:17] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 16:15:17] 
+
+[2026-07-02 16:15:17] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:15:18] 
+
+[2026-07-02 16:15:21] 
+
+[2026-07-02 16:15:21] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+
+[2026-07-02 16:25:44] Server listening on port 8080 ...
+
+[2026-07-02 16:26:09] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:26:09] 
+
+[2026-07-02 16:26:15] 
+
+[2026-07-02 16:26:15] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:26:26] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 16:26:26] 
+
+[2026-07-02 16:26:26] 
+
+[2026-07-02 16:26:35] 
+Connected to SQLite Database; API Path PATCH: /api/features/location
+Skipping file (inaccessible): C:/Users/nour2\AppData\Local\Docker\run\dockerEthernetVfkit - status: The file cannot be accessed by the system.: "C:/Users/nour2\AppData\Local\Docker\run\dockerEthernetVfkit"
+Skipping file (inaccessible): C:/Users/nour2\AppData\Local\Docker\run\dockerInference - status: The file cannot be accessed by the system.: "C:/Users/nour2\AppData\Local\Docker\run\dockerInference"
+Skipping file (inaccessible): C:/Users/nour2\AppData\Local\Docker\run\userAnalyticsOtlpHttp.sock - status: The file cannot be accessed by the system.: "C:/Users/nour2\AppData\Local\Docker\run\userAnalyticsOtlpHttp.sock"
+Skipping file (inaccessible): C:/Users/nour2\AppData\Local\docker-secrets-engine\engine.sock - status: The file cannot be accessed by the system.: "C:/Users/nour2\AppData\Local\docker-secrets-engine\engine.sock"
+Skipping file (inaccessible): C:/Users/nour2\AppData\Local\Microsoft\Windows\CloudStore\{f99a4dac-5f0f-4923-9f84-e2a69f2c0498}\windows.data.apps.appleveltileinfo\appleveltilelist\w~{7c5a40ef-a0fb-4bfc-874a-c0f2e0b9fa8e}blackmagic designblackmagic rawblackmagic raw playerblackmagicrawplayer.exe - file_size: The system cannot find the path specified.: "C:/Users/nour2\AppData\Local\Microsoft\Windows\CloudStore\{f99a4dac-5f0f-4923-9f84-e2a69f2c0498}\windows.data.apps.appleveltileinfo\appleveltilelist\w~{7c5a40ef-a0fb-4bfc-874a-c0f2e0b9fa8e}blackmagic designblackmagic rawblackmagic raw playerblackmagicrawplayer.exe"
+
+[2026-07-02 16:26:50] 
+
+[2026-07-02 16:26:50] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:26:58] 
+
+[2026-07-02 16:27:01] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:27:05] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:27:06] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:27:29] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:27:38] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:27:40] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:28:07] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 16:28:07] 
+
+[2026-07-02 16:28:07] 
+
+
+[2026-07-02 16:32:25] Server listening on port 8080 ...
+
+[
+[2026-07-02 16:32:56] 
+2026-07-02 16:32:56] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 16:32:56] 
+
+[2026-07-02 16:32:56] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:32:56] 
+
+
+[[2026-07-02 16:33:042026-07-02 16:33:04] ] 
+
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 16:33:04] 
+
+[2026-07-02 16:33:09] 
+Connected to SQLite Database; API Path PATCH: /api/features/location
+
+[2026-07-02 16:33:54] 
+
+[2026-07-02 16:33:54] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:34:25] 
+
+[2026-07-02 16:34:27] 
+
+[2026-07-02 16:34:27] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[
+[2026-07-02 16:36:11] 2026-07-02 16:36:11
+] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 16:36:11] 
+
+[2026-07-02 16:36:15] 
+Connected to SQLite Database; API Path PATCH: /api/features/location
+
+[2026-07-02 16:36:34] 
+
+[2026-07-02 16:36:34] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:36:38] 
+
+[2026-07-02 16:39:08] 
+
+[2026-07-02 16:39:08] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 16:39:08] 
+
+[2026-07-02 16:39:17] 
+Connected to SQLite Database; API Path PATCH: /api/features/location
+
+[2026-07-02 16:40:02] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:40:02] 
+
+[2026-07-02 16:40:05] 
+
+
+[2026-07-02 16:43:29] Server listening on port 8080 ...
+
+
+[2026-07-02 16:43:52] Server listening on port 8080 ...
+
+
+[2026-07-02 16:46:52] Server listening on port 8080 ...
+
+[2026-07-02 16:47:10] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 16:47:10] 
+
+[2026-07-02 16:47:10] 
+
+[2026-07-02 16:47:11] 
+
+[2026-07-02 16:47:12] 
+
+[2026-07-02 16:47:12] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 16:47:12] 
+
+[2026-07-02 16:47:14] 
+
+[2026-07-02 16:47:15] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 16:47:15] 
+
+[2026-07-02 16:47:15] 
+
+[2026-07-02 16:47:25] 
+
+[2026-07-02 16:47:27] 
+
+[2026-07-02 16:47:27] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:48:13] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+
+[[2026-07-02 16:48:13] 
+2026-07-02 16:48:13] 
+
+[2026-07-02 16:48:19] 
+Connected to SQLite Database; API Path PATCH: /api/features/location
+
+[2026-07-02 16:48:41] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:48:41] 
+
+[2026-07-02 16:49:19] 
+
+[2026-07-02 16:49:30] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 16:49:30] 
+
+[2026-07-02 16:49:30] 
+
+[2026-07-02 16:49:48] 
+
+
+[2026-07-02 16:58:05] Server listening on port 8080 ...
+
+
+[[2026-07-02 16:58:17] 2026-07-02 16:58:17
+] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 16:58:17] 
+
+[2026-07-02 16:58:17] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:58:18] 
+
+[2026-07-02 16:58:22] 
+
+[2026-07-02 16:58:22] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 16:58:22] 
+
+[2026-07-02 16:58:28] 
+Connected to SQLite Database; API Path PATCH: /api/features/location
+
+[2026-07-02 16:59:14] 
+
+[2026-07-02 16:59:14] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:59:17] 
+
+[2026-07-02 16:59:19] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 16:59:31] 
+
+[2026-07-02 16:59:31] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 17:11:08] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 17:11:08] 
+
+[2026-07-02 17:11:08] 
+
+[2026-07-02 17:11:13] 
+Connected to SQLite Database; API Path PATCH: /api/features/location
+
+[2026-07-02 17:13:26] 
+
+[2026-07-02 17:13:26] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 17:13:44] 
+
+[2026-07-02 17:13:49] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 17:13:55] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 17:14:02] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 17:14:02] 
+
+[2026-07-02 17:14:02] 
+
+[2026-07-02 17:14:08] 
+Connected to SQLite Database; API Path PATCH: /api/features/location
+
+
+[2026-07-02 17:18:10] Server listening on port 8080 ...
+
+[2026-07-02 17:19:56] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 17:19:56] 
+
+[2026-07-02 17:19:58] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+
+[[2026-07-02 17:19:58] 
+2026-07-02 17:19:58] 
+
+[2026-07-02 17:20:07] 
+Connected to SQLite Database; API Path PATCH: /api/features/location
+
+[2026-07-02 17:20:53] 
+
+[2026-07-02 17:20:53] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 17:22:51] 
+
+[2026-07-02 17:22:55] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 17:23:00] 
+
+[2026-07-02 17:23:00] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+
+[2026-07-02 17:27:03] Server listening on port 8080 ...
+
+[
+[2026-07-02 17:27:09] 
+2026-07-02 17:27:09] 
+Connected to SQLite Database; API Path GET: /api/user/name
+
+[2026-07-02 17:27:09] 
+
+[2026-07-02 17:27:11] 
+
+[2026-07-02 17:27:17] 
+
+[2026-07-02 17:27:17] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+
+[2026-07-02 17:29:38] Server listening on port 8080 ...
+
+
+[2026-07-02 17:29:42] Server listening on port 8080 ...
+
+
+[2026-07-02 17:29:54] Server listening on port 8080 ...
+
+[2026-07-02 17:30:01] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 17:30:01] 
+
+[2026-07-02 17:30:04] 
+
+[2026-07-02 17:30:04] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+
+[2026-07-02 17:30:53] Server listening on port 8080 ...
+
+[2026-07-02 17:30:55] 
+
+[2026-07-02 17:30:55] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 17:31:00] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 17:31:00] 
+
+[2026-07-02 17:31:01] 
+
+[2026-07-02 17:31:01] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 17:45:40] 
+
+[2026-07-02 17:45:40] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 17:54:17] 
+
+[2026-07-02 17:54:17] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 17:57:46] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 17:57:46] 
+
+[2026-07-02 17:57:49] 
+Connected to SQLite Database; API Path POST: /api/files/upload
+Data is not multipart
+Successfully wrote 122812 bytes to C:\Users\nour2\Downloads\human_refrence.fbx
+
+[2026-07-02 17:57:49] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name
+
+[2026-07-02 17:58:01] 
+Connected to SQLite Database; API Path DELETE: /api/files/delete
+
+[2026-07-02 17:58:01] 
+Connected to SQLite Database; API Path GET: /api/files/name
+Successfully Queried the Database; API Path GET: /api/files/name

@@ -10,6 +10,7 @@ import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuthContext } from '../context/AuthContext.jsx';
 import { useAccountContext } from '../context/AccountContext.jsx';
+import { useFileContext } from '../context/FileContext.jsx';
 import axios from 'axios';
 import '../styles/Login-Signup.css'
 import sorbusLogo from '../assets/sorbus_logo.png';
@@ -23,6 +24,7 @@ function Login() {
 
   const { login, isLoggedIn } = useAuthContext();
   const { updateUserId, setUsername: setAccountUsername, setAccess } = useAccountContext();
+  const { loadFolder } = useFileContext();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -35,6 +37,7 @@ function Login() {
       updateUserId(user_id);
       setAccountUsername(returnedUsername);
       setAccess(access);
+      loadFolder('', user_id);
       navigate('/home');
     } catch {
       setError(true);

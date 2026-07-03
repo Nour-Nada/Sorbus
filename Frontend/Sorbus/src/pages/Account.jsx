@@ -101,6 +101,7 @@ function Account() {
     if (raw.includes('Outside the Allowed Root')) return 'That path is outside the area this server is allowed to access. Pick a folder inside the permitted root.';
     if (raw.includes('Incorrect Parameter')) return 'Path does not exist, is not absolute, or is not a valid directory.';
     if (/max|too many|limit/i.test(raw)) return 'Too many files to index at this path.';
+    if (raw.includes('iterator') || raw.includes('system') || raw.length > 80) return 'Failed to index the path — some files may be inaccessible. Try a more specific subfolder.';
     return raw;
   };
 
@@ -125,17 +126,27 @@ function Account() {
   };
 
   const handleReinit = async () => {
+    setConfirmReinit(false);
+    setPathBusy(true);
     try {
       await axios.patch(`/api/features/reinitialize/${userId}`);
     } catch (err) {
       console.error('Failed to reinitialize:', err);
     } finally {
-      setConfirmReinit(false);
+      setPathBusy(false);
     }
   };
 
   return (
     <div className="ac-page">
+      {pathBusy && (
+        <div className="ac-busy-overlay">
+          <div className="ac-busy-box">
+            <div className="ac-spinner" />
+            <span>Indexing files… please wait</span>
+          </div>
+        </div>
+      )}
       <div className="ac-topbar">
         <button className="ac-back-btn" onClick={() => navigate('/home')}>
           <span className="material-icons">arrow_back</span>
@@ -153,13 +164,13 @@ function Account() {
         </div>
       </div>
 
+      {loading && (
+        <div className="ac-loading-banner">
+          <div className="ac-spinner" />
+          <span>Loading account data…</span>
+        </div>
+      )}
       <div className="ac-body">
-        {loading && (
-          <div className="ac-loading-banner">
-            <div className="ac-spinner" />
-            <span>Loading account data…</span>
-          </div>
-        )}
         {/* Box 1: Users */}
         <div className="ac-box">
           <h2 className="ac-box-title">

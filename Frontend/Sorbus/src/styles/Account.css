@@ -437,7 +437,7 @@
   gap: 10px;
   font-size: 0.8rem;
   color: #6a7a90;
-  padding: 4px 2px 8px;
+  padding: 6px 24px 0;
 }
 
 .ac-spinner {
@@ -451,6 +451,28 @@
 
 @keyframes ac-spin {
   to { transform: rotate(360deg); }
+}
+
+.ac-busy-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.ac-busy-box {
+  background: var(--bg-secondary, #1e1e1e);
+  border-radius: 12px;
+  padding: 28px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  color: var(--text-primary, #fff);
+  font-size: 0.95rem;
 }
 
 @media (max-width: 768px) {

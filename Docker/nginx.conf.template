@@ -2,6 +2,9 @@ server {
     listen 80;
     server_name _;
 
+    # Preserve headers with underscores (file_name, file_location) — nginx drops them by default
+    underscores_in_headers on;
+
     root /usr/share/nginx/html;
     index index.html;
 
