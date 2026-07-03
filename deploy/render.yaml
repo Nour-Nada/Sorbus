@@ -18,6 +18,7 @@ services:
   - type: web
     name: sorbus-gateway
     runtime: docker
+    plan: free
     dockerfilePath: ./Docker/Dockerfile.node
     dockerContext: .
     healthCheckPath: /
