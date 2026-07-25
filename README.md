@@ -136,7 +136,7 @@ Sorbus is hardware- and host-agnostic, but if you're starting from scratch, here
 - 📖 [Cloudflare Tunnel — overview](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
 - 🚀 [Create your first tunnel (step-by-step)](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/get-started/create-remote-tunnel/)
 
-> **⚠️ Cloudflare Tunnel upload limit:** Cloudflare's free tier enforces a **100 MB per-request upload cap** at their edge. This is a hard limit — it cannot be worked around server-side, because Cloudflare rejects the request before it reaches your machine. Any single file over 100 MB will fail to upload. Downloads are not affected.
+> **⚠️ Cloudflare Tunnel upload limit:** Cloudflare's free tier enforces a **100 MB per-request cap on uploads** at their edge, so any single file larger than 100 MB will fail to upload. **Downloads are not affected — there is no size limit on downloading files.**
 
 ---
 
