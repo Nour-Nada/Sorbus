@@ -23,6 +23,7 @@ export const FileProvider = ({children}) => {
     const [currentPath, setCurrentPath] = useState([]); // active folder path segments
     const [uploads, setUploads] = useState([]); // in-flight uploads: { name, progress, status, error }
     const [storageReady, setStorageReady] = useState(null); // null = unknown, false = not configured, true = ready
+    const [loadErrorPath, setLoadErrorPath] = useState(null); // path whose most recent fetch failed (null = none)
 
     const pendingFetches = useRef(new Set()); // prevents duplicate in-flight requests for the same path
     const cacheRef = useRef({}); // synchronous mirror of folderCache for non-stale closure checks
@@ -34,6 +35,7 @@ export const FileProvider = ({children}) => {
         if (!uid) return;
         pendingFetches.current.add(folderPath);
         setLoadingSet(prev => new Set(prev).add(folderPath));
+        setLoadErrorPath(prev => prev === folderPath ? null : prev); // clear any prior error for this path when retrying
         axios.get(`/api/files/name/${uid}`, { params: { folder: folderPath } })
             .then(res => {
                 const initialized = res.data.initialized !== false;
@@ -42,7 +44,10 @@ export const FileProvider = ({children}) => {
                 cacheRef.current = { ...cacheRef.current, [folderPath]: items };
                 setFolderCache({ ...cacheRef.current });
             })
-            .catch(err => console.error('[/api/files/name]', folderPath, err.response?.status ?? err.code, err.response?.data || err.message))
+            .catch(err => {
+                setLoadErrorPath(folderPath); // surface the failure so the UI shows an error instead of a stuck spinner
+                console.error('[/api/files/name]', folderPath, err.response?.status ?? err.code, err.response?.data || err.message);
+            })
             .finally(() => {
                 pendingFetches.current.delete(folderPath);
                 setLoadingSet(prev => { const s = new Set(prev); s.delete(folderPath); return s; });
@@ -121,7 +126,7 @@ export const FileProvider = ({children}) => {
     const filesLoading = loadingSet.has(currentPath.join('/')); // true when the currently viewed folder is being fetched
 
     return (
-        <FileContext.Provider value={{ folderCache, loadFolder, invalidateFolder, refreshFiles, currentPath, setCurrentPath, uploadFiles, uploads, clearUploads, storageReady, filesLoading }}>
+        <FileContext.Provider value={{ folderCache, loadFolder, invalidateFolder, refreshFiles, currentPath, setCurrentPath, uploadFiles, uploads, clearUploads, storageReady, filesLoading, loadErrorPath }}>
             {children}
         </FileContext.Provider>
     );

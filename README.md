@@ -136,7 +136,18 @@ Sorbus is hardware- and host-agnostic, but if you're starting from scratch, here
 - 📖 [Cloudflare Tunnel — overview](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
 - 🚀 [Create your first tunnel (step-by-step)](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/get-started/create-remote-tunnel/)
 
-> **⚠️ Cloudflare Tunnel upload limit:** Cloudflare's free tier enforces a **100 MB per-request cap on uploads** at their edge, so any single file larger than 100 MB will fail to upload. **Downloads are not affected — there is no size limit on downloading files.**
+You have two ways to run the tunnel:
+
+- **Quick tunnel (free, no domain — good for testing).** With `cloudflared` installed, one command tunnels your local C++ server and prints a temporary public URL:
+  ```bash
+  cloudflared tunnel --url http://localhost:8080
+  ```
+  It prints a `https://<random>.trycloudflare.com` URL — use that as your `C_Server_Route`. **The catch:** the URL changes every time you restart `cloudflared`, so you'd have to update `C_Server_Route` each restart. It also only runs while that terminal stays open. Fine for trying Sorbus out, not for a permanent setup.
+- **Named tunnel (persistent — needs a domain).** For a stable URL that survives restarts, add a domain to your Cloudflare account and map a hostname (e.g. `cpp.yourdomain.com`) to `localhost:8080`. A domain is cheap (a `.xyz`/`.top` is often ~$1–3/year) and unlocks a permanent `C_Server_Route`. You can also install the tunnel as a background service so it auto-starts on boot.
+
+> **⚠️ Cloudflare Tunnel upload limit:** Cloudflare's free tier enforces a **100 MB per-request cap on uploads** at their edge, so any single file larger than 100 MB will fail to upload. **Downloads are not affected — there is no size limit on downloading files.** In practice this is rarely a problem: the common uses of a personal cloud are downloading your files and uploading things under 100 MB, both of which work fine.
+>
+> If you *do* need to upload very large files, the limit is a property of the Cloudflare tunnel, not of Sorbus — so you can swap in a different way of reaching your home machine that has no such cap. Options include your own domain with **port forwarding** (+ a dynamic-DNS service like DuckDNS), or a small **VPS acting as a reverse-proxy/relay**. These trade away some of Cloudflare's conveniences (hidden home IP, no open ports, DDoS protection), so weigh that against your need for >100 MB uploads. Setup for those is out of scope here.
 
 ---
 

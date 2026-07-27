@@ -30,7 +30,7 @@ function getFileIcon(name) {
 }
 
 function FileView() {
-  const { folderCache, loadFolder, invalidateFolder, currentPath, setCurrentPath, uploadFiles, storageReady, filesLoading } = useFileContext();
+  const { folderCache, loadFolder, invalidateFolder, currentPath, setCurrentPath, uploadFiles, storageReady, filesLoading, loadErrorPath } = useFileContext();
   const { userId } = useAccountContext();
 
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
@@ -51,7 +51,8 @@ function FileView() {
   const currentPathStr = currentPath.join('/');
   const currentItems = folderCache[currentPathStr] ?? []; // flat array of { id, name, isFolder, size, ext }
 
-  const isLoadingFiles = (filesLoading || storageReady === null) && currentItems.length === 0;
+  const filesError = loadErrorPath === currentPathStr && currentItems.length === 0; // current folder's fetch failed
+  const isLoadingFiles = (filesLoading || storageReady === null) && currentItems.length === 0 && !filesError;
 
   const filteredItems = currentItems.filter(item =>
     item.name.toLowerCase().includes(search.toLowerCase())
@@ -316,6 +317,13 @@ function FileView() {
         <div className="fv-loading">
           <div className="fv-spinner" />
           <p className="fv-loading-text">Loading your files…</p>
+        </div>
+      ) : filesError ? (
+        <div className="fv-uninitialized">
+          <span className="material-icons">cloud_off</span>
+          <p className="fv-uninitialized-title">Couldn't reach the server</p>
+          <p className="fv-uninitialized-hint">Your file server may be offline or unreachable. Make sure it's running, then retry.</p>
+          <button className="fv-retry-btn" onClick={() => loadFolder(currentPathStr)}>Retry</button>
         </div>
       ) : !storageReady ? (
         <div className="fv-uninitialized">

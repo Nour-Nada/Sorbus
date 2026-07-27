@@ -39,6 +39,20 @@
     margin: 0;
 }
 
+.fv-retry-btn {
+    margin-top: 8px;
+    padding: 8px 20px;
+    border: 1px solid #2e5fa3;
+    border-radius: 6px;
+    background: #1a2e50;
+    color: #7eaadf;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.fv-retry-btn:hover { background: #1e3a60; }
+
 /* Loading state — shown while the file tree is being fetched */
 .fv-loading {
     flex: 1;
