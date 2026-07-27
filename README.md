@@ -145,9 +145,11 @@ You have two ways to run the tunnel:
   It prints a `https://<random>.trycloudflare.com` URL — use that as your `C_Server_Route`. **The catch:** the URL changes every time you restart `cloudflared`, so you'd have to update `C_Server_Route` each restart. It also only runs while that terminal stays open. Fine for trying Sorbus out, not for a permanent setup.
 - **Named tunnel (persistent — needs a domain).** For a stable URL that survives restarts, add a domain to your Cloudflare account and map a hostname (e.g. `cpp.yourdomain.com`) to `localhost:8080`. A domain is cheap (a `.xyz`/`.top` is often ~$1–3/year) and unlocks a permanent `C_Server_Route`. You can also install the tunnel as a background service so it auto-starts on boot.
 
-> **⚠️ Cloudflare Tunnel upload limit:** Cloudflare's free tier enforces a **100 MB per-request cap on uploads** at their edge, so any single file larger than 100 MB will fail to upload. **Downloads are not affected — there is no size limit on downloading files.** In practice this is rarely a problem: the common uses of a personal cloud are downloading your files and uploading things under 100 MB, both of which work fine.
+> **⚠️ Cloudflare Tunnel upload limit:** Cloudflare's free tier enforces a **100 MB per-request cap on uploads** at their edge, so any single file larger than 100 MB will fail to upload. **Downloads are not affected — there is no size limit on downloading files.** In practice this is not a problem for everyone: downloading your files and uploading things under 100 MB both work with no issue.
 >
 > If you *do* need to upload very large files, the limit is a property of the Cloudflare tunnel, not of Sorbus — so you can swap in a different way of reaching your home machine that has no such cap. Options include your own domain with **port forwarding** (+ a dynamic-DNS service like DuckDNS), or a small **VPS acting as a reverse-proxy/relay**. These trade away some of Cloudflare's conveniences (hidden home IP, no open ports, DDoS protection), so weigh that against your need for >100 MB uploads. Setup for those is out of scope here.
+>
+> **🔒 Critical if you swap out Cloudflare:** the Cloudflare tunnel is what currently **encrypts the connection between the cloud gateway and your home C++ server** (the C++ server itself speaks plain HTTP — it has no TLS of its own). If you replace the tunnel with raw **port forwarding + DuckDNS**, that hop becomes **unencrypted HTTP over the public internet**, which sends your **API key and every file in plaintext** and exposes your home IP and an open port. This is a real security downgrade. If you go this route you **must** add transport encryption yourself — one option is putting **[Caddy](https://caddyserver.com)** in front of the C++ server (it auto-provisions a Let's Encrypt certificate and terminates HTTPS), or tunnelling the gateway↔home link over a **VPN** such as Tailscale/WireGuard. Do **not** expose the plain-HTTP C++ server to the internet directly.
 
 ---
 
@@ -243,6 +245,12 @@ You're live.
 
 ## Running the C++ Server
 
+> ## ⚠️ Read this first — about the build/run commands
+>
+> **The compile and run commands throughout this README (and the Local Development section) were AI-generated. The author has NOT personally run or tested them.** They are provided as a starting point only. They may contain mistakes, be incomplete, or need adjustment for your OS, compiler version, or paths.
+>
+> **Use them at your own risk.** Review each command before running it, understand what it does, and expect to tweak it. If something doesn't work, that's expected — treat these as a guide, not a guarantee. The author accepts no responsibility for issues arising from running them.
+
 The file server runs **natively** on the home machine so it has direct, full-speed access to your whole filesystem. It's a single binary built from vendored libraries — no system packages to install beyond a C++17 compiler.
 
 > **One compile note:** `sqlite3.c` and `miniz.c` are **C** files and must be compiled with a **C** compiler (`gcc`/`clang`). Compiling them with `g++` fails, because C++ forbids the implicit `void*` conversions SQLite relies on. The commands below do this correctly.
@@ -270,7 +278,7 @@ On macOS use the same commands (Apple Clang provides `gcc`/`g++`); drop `-ldl` i
 
 To keep it running across reboots, wrap it in a **systemd** service (Linux) or a **launchd** plist (macOS).
 
-> _These commands are AI-generated and have not been personally tested by the author — they may need small tweaks for your specific setup._
+> ⚠️ _**AI-generated, never tested by the author — use at your own risk.** Review before running; they may need adjusting for your setup._
 
 ### Windows
 
@@ -296,7 +304,7 @@ Get-Content ..\Docker\.env.local | Where-Object { $_ -and $_ -notmatch '^\s*#' }
 
 Use forward slashes in `FILEAPP_FILE_LOCATION` / `FILEAPP_ROOT_LIMIT` (e.g. `C:/Users/you/Documents`). To run on boot, register it as a scheduled task (**Task Scheduler** → "At log on / At startup").
 
-> _These commands are AI-generated and have not been personally tested by the author — they may need small tweaks for your specific setup._
+> ⚠️ _**AI-generated, never tested by the author — use at your own risk.** Review before running; they may need adjusting for your setup._
 
 ### What `FILEAPP_ROOT_LIMIT` does
 
@@ -510,7 +518,7 @@ FILEAPP_REGISTER_KEY=dev-register-key ./sorbus-server
 
 > `FILEAPP_REGISTER_KEY` is mandatory — the server exits immediately without it. On Windows, build in Visual Studio (Smart App Control may block locally-built binaries — see the Windows section above).
 
-> _These commands are AI-generated and have not been personally tested by the author — they may need small tweaks for your specific setup._
+> ⚠️ _**AI-generated, never tested by the author — use at your own risk.** Review before running; they may need adjusting for your setup._
 
 **2. Node.js gateway:**
 
@@ -583,6 +591,7 @@ And the operational rules:
 - **Set a strong `REGISTER_KEY`.** It's the only thing stopping strangers from creating accounts. Share it only with people you want to have access.
 - **Keep `.env.local` and `.env.cloud` out of version control.** They hold your secrets and are git-ignored by default — keep them that way.
 - **Serve everything over HTTPS.** Refresh-token cookies are marked `Secure` in production; the Cloudflare tunnel and your cloud host should both terminate TLS.
+- **The C++ server has no TLS of its own — keep the encrypted transport in front of it.** It speaks plain HTTP, and today the Cloudflare tunnel is what encrypts the gateway↔home connection. If you ever replace the tunnel with **port forwarding + DuckDNS** (or anything that reaches the C++ server directly), that link becomes plaintext HTTP on the open internet — leaking your `API_KEY` and file contents and exposing an open port. If you swap the tunnel out, you **must** add your own TLS (e.g. a **[Caddy](https://caddyserver.com)** reverse proxy with an auto Let's Encrypt cert) or route the link over a **VPN** (Tailscale/WireGuard). Never point a DNS record straight at the plain-HTTP C++ port.
 
 ## Contributing
 

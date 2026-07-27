@@ -6,7 +6,7 @@
 //
 // Self-Hosted Personal Cloud Storage — MIT License
 // ============================================================
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useFileContext } from '../context/FileContext.jsx';
 import { useAccountContext } from '../context/AccountContext.jsx';
@@ -50,6 +50,11 @@ function FileView() {
 
   const currentPathStr = currentPath.join('/');
   const currentItems = folderCache[currentPathStr] ?? []; // flat array of { id, name, isFolder, size, ext }
+
+  useEffect(() => {
+    // Load whichever folder is now active — covers every navigation path (breadcrumb, tree, back) so it never shows empty
+    loadFolder(currentPathStr);
+  }, [currentPathStr, loadFolder]);
 
   const filesError = loadErrorPath === currentPathStr && currentItems.length === 0 && !scanning; // current folder's fetch failed
   const isLoadingFiles = (filesLoading || storageReady === null || scanning) && currentItems.length === 0 && !filesError;
