@@ -175,8 +175,8 @@ void initialize_schema() { //Creates SQLite tables and seeds server_info on firs
     db.exec(
         "CREATE TABLE IF NOT EXISTS users ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
-        "  username TEXT NOT NULL UNIQUE,"
-        "  email TEXT NOT NULL UNIQUE,"
+        "  username TEXT NOT NULL UNIQUE COLLATE NOCASE,"
+        "  email TEXT NOT NULL UNIQUE COLLATE NOCASE,"
         "  password TEXT NOT NULL,"
         "  access TEXT NOT NULL DEFAULT 'viewer',"
         "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
@@ -472,7 +472,7 @@ int main(void)
                     return;
                 }
 
-                SQLite::Statement dupCheck(DB_Connection, "SELECT 1 FROM users WHERE username = ? OR email = ? LIMIT 1");
+                SQLite::Statement dupCheck(DB_Connection, "SELECT 1 FROM users WHERE username = ? COLLATE NOCASE OR email = ? COLLATE NOCASE LIMIT 1"); //Case-insensitive duplicate check
                 dupCheck.bind(1, username);
                 dupCheck.bind(2, email);
                 if (dupCheck.executeStep()) { //Checks if a user with the same username or email already exists
@@ -499,9 +499,15 @@ int main(void)
                 result.executeStep();
 
                 nlohmann::json response;
-                response["user_id"] = result.getColumn("id").getInt();
+                int new_user_id = result.getColumn("id").getInt();
+                response["user_id"] = new_user_id;
                 response["username"] = result.getColumn("username").getText();
                 response["access"] = result.getColumn("access").getText();
+
+                if (access == "owner" && !get_file_location().empty()) { //Index the configured folder so the owner sees files on first login
+                    try { reinitialize_files(DB_Connection, new_user_id); }
+                    catch (const std::exception& e) { std::cout << "Initial file scan failed: " << e.what() << std::endl; } //Non-fatal — owner can rescan from the Account page
+                }
 
                 DB_Open_Connection.commit();
 
@@ -528,7 +534,7 @@ int main(void)
                 SQLite::Database DB_Connection = openDB();
                 std::cout << GOOD_DB_CONNECTION << API_PATH << std::endl;
 
-                SQLite::Statement result(DB_Connection, "SELECT * FROM users WHERE username = ? OR email = ?");
+                SQLite::Statement result(DB_Connection, "SELECT * FROM users WHERE username = ? COLLATE NOCASE OR email = ? COLLATE NOCASE"); //Case-insensitive match
                 result.bind(1, username);
                 result.bind(2, username);
 
