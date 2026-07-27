@@ -30,7 +30,7 @@ function getFileIcon(name) {
 }
 
 function FileView() {
-  const { folderCache, loadFolder, invalidateFolder, currentPath, setCurrentPath, uploadFiles, storageReady, filesLoading, loadErrorPath } = useFileContext();
+  const { folderCache, loadFolder, invalidateFolder, currentPath, setCurrentPath, uploadFiles, storageReady, filesLoading, loadErrorPath, scanning } = useFileContext();
   const { userId } = useAccountContext();
 
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
@@ -51,8 +51,8 @@ function FileView() {
   const currentPathStr = currentPath.join('/');
   const currentItems = folderCache[currentPathStr] ?? []; // flat array of { id, name, isFolder, size, ext }
 
-  const filesError = loadErrorPath === currentPathStr && currentItems.length === 0; // current folder's fetch failed
-  const isLoadingFiles = (filesLoading || storageReady === null) && currentItems.length === 0 && !filesError;
+  const filesError = loadErrorPath === currentPathStr && currentItems.length === 0 && !scanning; // current folder's fetch failed
+  const isLoadingFiles = (filesLoading || storageReady === null || scanning) && currentItems.length === 0 && !filesError;
 
   const filteredItems = currentItems.filter(item =>
     item.name.toLowerCase().includes(search.toLowerCase())
@@ -316,7 +316,7 @@ function FileView() {
       {isLoadingFiles ? (
         <div className="fv-loading">
           <div className="fv-spinner" />
-          <p className="fv-loading-text">Loading your files…</p>
+          <p className="fv-loading-text">{scanning ? 'Indexing your files…' : 'Loading your files…'}</p>
         </div>
       ) : filesError ? (
         <div className="fv-uninitialized">

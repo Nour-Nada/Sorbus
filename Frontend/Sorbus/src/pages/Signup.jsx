@@ -10,6 +10,7 @@ import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuthContext } from '../context/AuthContext.jsx';
 import { useAccountContext } from '../context/AccountContext.jsx';
+import { useFileContext } from '../context/FileContext.jsx';
 import axios from 'axios';
 import '../styles/Login-Signup.css'
 import sorbusLogo from '../assets/sorbus_logo.png';
@@ -38,6 +39,7 @@ function Signup() {
 
   const { login, isLoggedIn } = useAuthContext();
   const { updateUserId, setUsername: setAccountUsername, setAccess } = useAccountContext();
+  const { runInitialScan } = useFileContext();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -53,6 +55,7 @@ function Signup() {
       setAccountUsername(returnedUsername);
       setAccess(access);
       navigate('/home');
+      if (access === 'owner') runInitialScan(user_id); // index the configured folder after auth, shown as loading in the file view
     } catch (err) {
       setError(err.response?.data || 'Could not create account. Check your registration key.');
     }

@@ -499,15 +499,9 @@ int main(void)
                 result.executeStep();
 
                 nlohmann::json response;
-                int new_user_id = result.getColumn("id").getInt();
-                response["user_id"] = new_user_id;
+                response["user_id"] = result.getColumn("id").getInt();
                 response["username"] = result.getColumn("username").getText();
                 response["access"] = result.getColumn("access").getText();
-
-                if (access == "owner" && !get_file_location().empty()) { //Index the configured folder so the owner sees files on first login
-                    try { reinitialize_files(DB_Connection, new_user_id); }
-                    catch (const std::exception& e) { std::cout << "Initial file scan failed: " << e.what() << std::endl; } //Non-fatal — owner can rescan from the Account page
-                }
 
                 DB_Open_Connection.commit();
 

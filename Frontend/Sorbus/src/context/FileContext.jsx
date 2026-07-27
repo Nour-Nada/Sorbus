@@ -24,6 +24,7 @@ export const FileProvider = ({children}) => {
     const [uploads, setUploads] = useState([]); // in-flight uploads: { name, progress, status, error }
     const [storageReady, setStorageReady] = useState(null); // null = unknown, false = not configured, true = ready
     const [loadErrorPath, setLoadErrorPath] = useState(null); // path whose most recent fetch failed (null = none)
+    const [scanning, setScanning] = useState(false); // true while the initial disk scan runs after first owner signup
 
     const pendingFetches = useRef(new Set()); // prevents duplicate in-flight requests for the same path
     const cacheRef = useRef({}); // synchronous mirror of folderCache for non-stale closure checks
@@ -67,6 +68,28 @@ export const FileProvider = ({children}) => {
         pendingFetches.current.clear();
         loadFolder('');
     }, [loadFolder]);
+
+    const runInitialScan = useCallback(async (explicitUserId) => {
+        // Indexes the configured storage folder once after first owner signup, showing a loading state instead of blocking auth
+        const uid = explicitUserId ?? userId;
+        if (!uid) return;
+        setScanning(true);
+        try {
+            const loc = await axios.get('/api/features/location');
+            if (loc.data) { // only scan if a storage path is actually configured
+                await axios.patch(`/api/features/reinitialize/${uid}`);
+                cacheRef.current = {};
+                setFolderCache({});
+                pendingFetches.current.clear();
+                setStorageReady(null);
+                loadFolder('', uid);
+            }
+        } catch (err) {
+            console.error('[initial scan]', err.response?.status ?? err.code, err.response?.data || err.message);
+        } finally {
+            setScanning(false);
+        }
+    }, [userId, loadFolder]);
 
     useEffect(() => {
         if (userId && isLoggedIn) loadFolder('');
@@ -126,7 +149,7 @@ export const FileProvider = ({children}) => {
     const filesLoading = loadingSet.has(currentPath.join('/')); // true when the currently viewed folder is being fetched
 
     return (
-        <FileContext.Provider value={{ folderCache, loadFolder, invalidateFolder, refreshFiles, currentPath, setCurrentPath, uploadFiles, uploads, clearUploads, storageReady, filesLoading, loadErrorPath }}>
+        <FileContext.Provider value={{ folderCache, loadFolder, invalidateFolder, refreshFiles, runInitialScan, currentPath, setCurrentPath, uploadFiles, uploads, clearUploads, storageReady, filesLoading, loadErrorPath, scanning }}>
             {children}
         </FileContext.Provider>
     );
