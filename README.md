@@ -232,21 +232,28 @@ The button uses a Blueprint that provisions both cloud services for you: the **g
    - **`C_Server_Route`** — your Cloudflare tunnel URL (the one pointing at the C++ server).
    - Leave `CORS_ORIGIN` blank for now; leave `VITE_API_URL` **empty** (the Blueprint sets it blank on purpose — don't fill it in).
 3. Let it deploy. Render assigns each service a URL, e.g. `https://sorbus-gateway.onrender.com` and `https://sorbus-web.onrender.com`.
-4. **Wire them together in the dashboard** (their URLs only exist after this first deploy):
-   - On **`sorbus-gateway`** → Environment → set **`CORS_ORIGIN`** to the **`sorbus-web`** URL.
-   - On **`sorbus-web`** → **Redirects/Rewrites** → **Add Rule**:
-     - **Source:** `/api/*`
-     - **Destination:** `https://<your-sorbus-gateway-URL>/api/*` (paste your actual gateway URL)
-     - **Action:** `Rewrite`
-     - Make sure this rule sits **above** the existing `/*` → `/index.html` rule (order matters — first match wins).
-5. **Redeploy the frontend** (`sorbus-web` → Manual Deploy → **Clear build cache & deploy**). The gateway picks up `CORS_ORIGIN` automatically on its next restart.
-6. Open the **`sorbus-web`** URL — that's your app. Make sure your home C++ server is running and the tunnel is up, then sign up (first account = owner).
+4. **Set `CORS_ORIGIN` on the gateway.** In the Render dashboard, open your **`sorbus-gateway`** service → **Environment** (left sidebar) → find **`CORS_ORIGIN`** → set it to your **`sorbus-web`** URL (e.g. `https://sorbus-web.onrender.com`, **no trailing slash**) → **Save Changes**.
+
+5. **Add the `/api` proxy rewrite on the frontend.** This is the step that makes the whole app one origin. Do it in the Render dashboard — you never touch `render.yaml`:
+   1. Open your **`sorbus-web`** service.
+   2. In the left sidebar click **Redirects/Rewrites** (on some plans it's under **Settings** → scroll to the **"Redirects and Rewrites"** section).
+   3. Click **Add Rule** and fill it in **exactly**:
+      | Field | Value |
+      |---|---|
+      | **Source** | `/api/*` |
+      | **Destination** | `https://YOUR-GATEWAY.onrender.com/api/*` — replace `YOUR-GATEWAY...` with your real **`sorbus-gateway`** URL from step 3 |
+      | **Action** | **Rewrite** (⚠️ *not* Redirect — a redirect changes the URL and breaks the same-origin trick; a rewrite forwards it invisibly) |
+   4. Click **Save**.
+   5. **Order matters.** The Blueprint already added a `/*` → `/index.html` rule. Your new `/api/*` rule **must sit above it** in the list (Render applies the first rule that matches). Drag it to the top if it isn't already.
+6. **Redeploy the frontend.** **`sorbus-web`** → **Manual Deploy** → **Clear build cache & deploy**. (The gateway picks up `CORS_ORIGIN` on its next restart automatically — no redeploy needed there.)
+7. **Test the rewrite worked.** Open your **`sorbus-web`** URL, then F12 → **Network** → sign up. The `/api/...` request should return real JSON from the gateway (**not** your `index.html`). If it returns HTML, the rewrite rule isn't matching — recheck the Source/Destination and that it's **Rewrite** and **above** the `/*` rule.
+8. Make sure your home C++ server is running and the tunnel is up, then sign up (first account = owner).
 
 **Free-tier note:** services sleep after ~15 min idle, so the first request after a lull takes ~30–60s to wake. Because the cloud tier is stateless, nothing is lost — upgrade to an always-on instance if the cold start bothers you.
 
 </details>
 
-> **🌐 Hosting somewhere other than Render or the bundled Docker setup?** (Railway, Fly.io, a VPS, Netlify/Vercel + a separate API, etc.) There's **one rule** that decides whether logins survive a page reload: **the browser must reach the app *and* its `/api` calls on the same origin** (same protocol + host). That keeps the login cookie *first-party* — which matters because **Safari and all iOS browsers block cross-site cookies**, and would otherwise log your users out on every refresh. Two ways to satisfy the rule:
+> **🌐 Hosting somewhere other than Render or the bundled Docker setup?** (Railway, Fly.io, a VPS, Netlify/Vercel + a separate API, etc.) There's **one rule** that decides whether logins survive a page reload: **the browser must reach the app *and* its `/api` calls on the same origin** (same protocol + host). That keeps the login cookie *first-party* — which matters because **Browsers such as Safari often block cross-site cookies**, and would otherwise log your users out on every refresh. Two ways to satisfy the rule:
 >
 > - ✅ **Proxy `/api` to the gateway (recommended).** Put a reverse proxy in front of the frontend so requests to `/api/*` on the frontend's own origin are forwarded to the Node gateway. Then set the frontend's **`VITE_API_URL` to empty** so it calls a relative `/api`. The **bundled nginx Docker setup already does exactly this** (`nginx.conf.template` proxies `/api` to the gateway). On other hosts, use their equivalent: Render's *Redirects/Rewrites*, Netlify/Vercel *rewrites*, or a Caddy/nginx `proxy_pass`.
 > - ⚠️ **Point the frontend straight at the gateway.** Set the frontend's **`VITE_API_URL`** to the gateway's full URL (e.g. `https://api.example.com`). Simplest, but if the frontend and gateway are on **different sites**, **Safari/iOS users get logged out on every reload** (cross-site cookie blocking). Only safe if the two are *same-site* — e.g. `app.you.com` + `api.you.com` under one domain you own — or if you genuinely don't care about Safari/iOS.
