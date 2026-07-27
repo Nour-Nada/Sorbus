@@ -48,7 +48,7 @@ function Signup() {
     const pwErr = validatePassword(password);
     if (pwErr) { setPasswordError(pwErr); return; }
     try {
-      const response = await axios.post(`/api/user/signup`, { username, email, password, reg_key: regKey }, { _retry: true });
+      const response = await axios.post(`/api/user/signup`, { username, email, password, reg_key: regKey }, { withCredentials: true, _retry: true });
       const { user_id, username: returnedUsername, access, jwt_token } = response.data;
       login(jwt_token);
       updateUserId(user_id);

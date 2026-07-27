@@ -31,7 +31,7 @@ function Login() {
   const signIn = async () => {
     // Sends login request and stores session data on success
     try {
-      const response = await axios.post(`/api/user/login/${username}`, { password }, { _retry: true });
+      const response = await axios.post(`/api/user/login/${username}`, { password }, { withCredentials: true, _retry: true });
       const { user_id, username: returnedUsername, access, jwt_token } = response.data;
       login(jwt_token);
       updateUserId(user_id);
