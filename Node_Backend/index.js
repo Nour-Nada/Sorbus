@@ -21,6 +21,9 @@ app.set('trust proxy', 1); //Trust the single reverse proxy (nginx) in front so 
 const port = process.env.PORT || 3000;
 dotenv.config();
 
+process.on('uncaughtException', (err) => console.error('[uncaughtException]', err.code || err.message)); //A proxied stream/socket abort must never crash the gateway and take down every user
+process.on('unhandledRejection', (err) => console.error('[unhandledRejection]', err?.code || err?.message || err));
+
 // Fail fast if any required environment variable is missing (Docker Compose guards these too, but this protects non-Docker runs)
 const REQUIRED_ENV = ['API_KEY', 'C_Server_Route', 'JWT_SECRET', 'REFRESH_TOKEN_SECRET', 'CORS_ORIGIN'];
 const missingEnv = REQUIRED_ENV.filter(name => !process.env[name]);
@@ -284,6 +287,7 @@ app.get("/api/files/download/:file_id/:user_id", limiter, verifyJWT, verifyUserI
       responseType: "stream"
     }); //Sets reponse equal to API call as well as calling the C++ server API
     res.status(response.status); //Sets the status to the status of the response from the C++ server
+    response.data.on('error', () => res.destroy()); //A reset upstream stream must not crash the process
     response.data.pipe(res); //Uses response to pipe the data from the frontend to the C++ server
   } catch (error) {
     console.error('[/api/files/download]', error.response?.status ?? error.code, error.response?.data || error.message);
@@ -332,6 +336,7 @@ app.get("/api/files/filesizes", limiter, verifyJWT, async (req, res) => { //The 
 //Post Routes
 
 app.post("/api/files/upload/:user_id", limiter, verifyJWT, verifyUserId(), async (req, res) => { //Uploads the given file from the frontend to the C++ server
+  req.on('error', () => {}); //A client aborting mid-upload must not throw an unhandled error
   try {
     const { user_id } = req.params;
 
@@ -341,26 +346,29 @@ app.post("/api/files/upload/:user_id", limiter, verifyJWT, verifyUserId(), async
       data: req,
       responseType: "stream",
       headers: {
-        ...req.headers,
         key: API_KEY,
         file_name: req.headers["file_name"],
         file_location: req.headers["file_location"],
-      },
+        "content-type": req.headers["content-type"] || "application/octet-stream",
+        "content-length": req.headers["content-length"], //Preserve the body length for the streamed upload
+      }, //Only forward what C++ needs — spreading all browser headers (Host, cookies, etc.) breaks Cloudflare tunnel routing
       maxBodyLength: Infinity,
       maxContentLength: Infinity
     }); //Saves the axios response to a variable as well as sending the intial data and opening a stream to the C++ server
 
     res.status(response.status); //Sets the status to the status of the response from the C++ server
+    response.data.on('error', () => res.destroy()); //A reset upstream stream must not crash the process
     response.data.pipe(res); //Pipes the data from the frontend into the C++ server
 
   } catch (error) {
     console.error('[/api/files/upload]', error.response?.status ?? error.code, error.message);
-    if (error.response) {
+    if (error.response?.data && typeof error.response.data.pipe === 'function') {
       res.status(error.response.status);
+      error.response.data.on('error', () => res.destroy());
       error.response.data.pipe(res); //Pipes the error stream from the C++ server
       return;
     }
-    res.status(500).send("Error uploading file");
+    if (!res.headersSent) res.status(error.response?.status || 500).send("Error uploading file");
   }
 });
 
@@ -527,6 +535,7 @@ app.get("/api/files/download-stream/:file_id/:user_id", downloadLimiter, async (
       responseType: "stream"
     });
     res.status(response.status);
+    response.data.on('error', () => res.destroy()); //A reset upstream stream must not crash the process
     response.data.pipe(res);
   } catch (error) {
     console.error('[/api/files/download-stream]', error.response?.status ?? error.code, error.response?.data || error.message);
