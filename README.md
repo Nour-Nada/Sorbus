@@ -76,8 +76,15 @@ The philosophy is simple: **you own your data.** Nothing lives on someone else's
 
 ## Screenshots
 
-<!-- TODO: add screenshots or a demo GIF here -->
-> _Screenshots / demo GIF coming soon._
+<p align="center">
+  <img src="Project_Media/file_view_example1.jpg" alt="Sorbus file browser" width="900" /><br />
+  <em>The file browser — a sortable ledger of your folders and files, with a folder tree, drag-and-drop upload, and live storage usage in the sidebar.</em>
+</p>
+
+<p align="center">
+  <img src="Project_Media/account_view_example2.jpg" alt="Sorbus account and storage page" width="900" /><br />
+  <em>The account page — user management, storage stats, and owner controls for the storage path and re-indexing.</em>
+</p>
 
 ---
 
