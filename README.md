@@ -222,23 +222,34 @@ The button uses a Blueprint that provisions both cloud services for you: the **g
 
 > **Already ran `setup.sh`?** You don't run it again for Render — the `.env.cloud` it produced is only for the "any Docker host" option above. For Render you enter values in the dashboard instead. The **only** value you carry over is `API_KEY`: use the *same* one that's in your `.env.local`/`.env.cloud` so it matches your home C++ server. The JWT secrets are generated fresh by Render and don't need to match anything, so regenerating them is harmless.
 
-> ⚠️ **Expect a two-step setup:** `CORS_ORIGIN` and `VITE_API_URL` can only be filled in **after** the first deploy (steps 4–5 below), because they're each other's auto-assigned URLs. This is normal — not a mistake.
+> ⚠️ **Expect a post-deploy wiring step:** the frontend and gateway are connected **after** the first deploy (steps 4–5 below), because each needs the other's auto-assigned URL — which doesn't exist until the services are created. This is normal, not a mistake. You do it all in the Render dashboard; you never edit `render.yaml`.
+>
+> **Why a rewrite rule instead of just pointing the frontend at the gateway?** So the whole app is served from **one origin**. If the browser talked to the gateway on a *different* `onrender.com` subdomain, the login cookie would be "cross-site" — and **Safari/iOS blocks cross-site cookies**, logging users out on every reload. Routing `/api` through the frontend keeps the cookie first-party, so sessions work everywhere. (See [Security Notes](#security-notes).)
 
 1. **Click the button** (or in Render: **New → Blueprint**, connect this repo, and set the *Blueprint path* to `deploy/render.yaml`).
 2. Render creates **`sorbus-gateway`** and **`sorbus-web`** and prompts you for the two secrets only you know:
    - **`API_KEY`** — the *same* value as `FILEAPP_API_KEY` on your home C++ server.
    - **`C_Server_Route`** — your Cloudflare tunnel URL (the one pointing at the C++ server).
-   - Leave `CORS_ORIGIN` and `VITE_API_URL` blank for now.
+   - Leave `CORS_ORIGIN` blank for now; leave `VITE_API_URL` **empty** (the Blueprint sets it blank on purpose — don't fill it in).
 3. Let it deploy. Render assigns each service a URL, e.g. `https://sorbus-gateway.onrender.com` and `https://sorbus-web.onrender.com`.
-4. **Wire the two URLs together** (they can't be known before the services exist):
+4. **Wire them together in the dashboard** (their URLs only exist after this first deploy):
    - On **`sorbus-gateway`** → Environment → set **`CORS_ORIGIN`** to the **`sorbus-web`** URL.
-   - On **`sorbus-web`** → Environment → set **`VITE_API_URL`** to the **`sorbus-gateway`** URL.
-5. **Redeploy the frontend** (`sorbus-web` → Manual Deploy). `VITE_API_URL` is baked in at build time, so it needs one rebuild to take effect. The gateway picks up `CORS_ORIGIN` automatically on its next restart.
+   - On **`sorbus-web`** → **Redirects/Rewrites** → **Add Rule**:
+     - **Source:** `/api/*`
+     - **Destination:** `https://<your-sorbus-gateway-URL>/api/*` (paste your actual gateway URL)
+     - **Action:** `Rewrite`
+     - Make sure this rule sits **above** the existing `/*` → `/index.html` rule (order matters — first match wins).
+5. **Redeploy the frontend** (`sorbus-web` → Manual Deploy → **Clear build cache & deploy**). The gateway picks up `CORS_ORIGIN` automatically on its next restart.
 6. Open the **`sorbus-web`** URL — that's your app. Make sure your home C++ server is running and the tunnel is up, then sign up (first account = owner).
 
 **Free-tier note:** services sleep after ~15 min idle, so the first request after a lull takes ~30–60s to wake. Because the cloud tier is stateless, nothing is lost — upgrade to an always-on instance if the cold start bothers you.
 
 </details>
+
+> **🌐 Hosting somewhere other than Render or the bundled Docker setup?** (Railway, Fly.io, a VPS, Netlify/Vercel + a separate API, etc.) There's **one rule** that decides whether logins survive a page reload: **the browser must reach the app *and* its `/api` calls on the same origin** (same protocol + host). That keeps the login cookie *first-party* — which matters because **Safari and all iOS browsers block cross-site cookies**, and would otherwise log your users out on every refresh. Two ways to satisfy the rule:
+>
+> - ✅ **Proxy `/api` to the gateway (recommended).** Put a reverse proxy in front of the frontend so requests to `/api/*` on the frontend's own origin are forwarded to the Node gateway. Then set the frontend's **`VITE_API_URL` to empty** so it calls a relative `/api`. The **bundled nginx Docker setup already does exactly this** (`nginx.conf.template` proxies `/api` to the gateway). On other hosts, use their equivalent: Render's *Redirects/Rewrites*, Netlify/Vercel *rewrites*, or a Caddy/nginx `proxy_pass`.
+> - ⚠️ **Point the frontend straight at the gateway.** Set the frontend's **`VITE_API_URL`** to the gateway's full URL (e.g. `https://api.example.com`). Simplest, but if the frontend and gateway are on **different sites**, **Safari/iOS users get logged out on every reload** (cross-site cookie blocking). Only safe if the two are *same-site* — e.g. `app.you.com` + `api.you.com` under one domain you own — or if you genuinely don't care about Safari/iOS.
 
 ### Step 4 — First run
 
@@ -501,7 +512,7 @@ All C++ routes require a `key` header matching `FILEAPP_API_KEY`. The Node gatew
 
 | Variable | Required | Description |
 |---|---|---|
-| `VITE_API_URL` | No | axios base URL. Defaults to same-origin (`''`). Leave empty in Docker — nginx proxies `/api/*`. Set only if React and Node are on different domains. |
+| `VITE_API_URL` | No | axios base URL. **Leave empty** for the recommended same-origin setup (nginx/Render rewrite proxies `/api/*` to the gateway). Only set it to the gateway's full URL if you're pointing the frontend cross-origin — which logs Safari/iOS users out on reload when the two are different sites (see [Deployment](#deployment--getting-started)). |
 
 </details>
 

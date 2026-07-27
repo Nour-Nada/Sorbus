@@ -22,7 +22,7 @@ function FileItemActions({ item, openFolder, onRenameStart, onMoveStart }) {
     try {
       const { data } = await axios.get(`/api/files/download-token/${fileId}/${userId}`);
       const a = document.createElement('a');
-      a.href = `/api/files/download-stream/${fileId}/${userId}?token=${data.token}`;
+      a.href = `${import.meta.env.VITE_API_URL || ''}/api/files/download-stream/${fileId}/${userId}?token=${data.token}`; //Absolute so the native download hits the gateway, not the static frontend
       a.download = filename;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
     } catch (err) { console.error('Download failed:', err); }
