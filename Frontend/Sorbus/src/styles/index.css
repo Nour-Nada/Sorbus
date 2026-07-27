@@ -9,4 +9,5 @@ html, body, #root {
     height: 100%;
     width: 100%;
     overflow: hidden;
+    background-color: #0e1a28; /* base fill so mobile Safari's viewport quirks never expose an uncolored gap */
 }
