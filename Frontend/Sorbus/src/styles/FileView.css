@@ -937,7 +937,8 @@
     .fv-sort-chip { padding: 4px 6px; font-size: 0.6rem; }
 
     /* Shelf: slightly smaller cards, hide Move button to fit 4 buttons */
-    .fv-shelf { padding: 12px; gap: 8px; }
+    .fv-shelf { padding: 12px 12px 84px; gap: 8px; } /* extra bottom space so the last item clears the floating hamburger */
+    .fv-ledger { padding-bottom: 84px; } /* same — keep the last row's actions above the hamburger */
     .fv-card { width: 112px; height: 116px; padding: 12px 8px 8px; }
     .fv-card .fv-act-move { display: none; }
 

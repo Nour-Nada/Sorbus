@@ -13,7 +13,7 @@ import { useAccountContext } from '../context/AccountContext.jsx';
 
 function FileContextMenu({ contextMenu, setContextMenu, openFolder, onMoveStart }) {
   // Positioned right-click menu; contextMenu = { x, y, name, id, isFolder }
-  const { currentPath, invalidateFolder, loadFolder } = useFileContext();
+  const { currentPath, refetchFolder } = useFileContext();
   const { userId } = useAccountContext();
   const [renameModal, setRenameModal] = useState(null);
   const [renameValue, setRenameValue] = useState('');
@@ -57,9 +57,7 @@ function FileContextMenu({ contextMenu, setContextMenu, openFolder, onMoveStart 
     if (!renameModal || !renameValue.trim()) return;
     try {
       await axios.patch(`/api/files/name/${renameModal.id}/${userId}`, { new_name: renameValue.trim() });
-      const pathStr = currentPath.join('/');
-      invalidateFolder(pathStr);
-      loadFolder(pathStr);
+      refetchFolder(currentPath.join('/'));
       setRenameModal(null);
     } catch (err) { console.error('Rename failed:', err); }
   };
@@ -69,9 +67,7 @@ function FileContextMenu({ contextMenu, setContextMenu, openFolder, onMoveStart 
     if (!deleteModal) return;
     try {
       await axios.delete(`/api/files/delete/${deleteModal.id}/${userId}`);
-      const pathStr = currentPath.join('/');
-      invalidateFolder(pathStr);
-      loadFolder(pathStr);
+      refetchFolder(currentPath.join('/'));
       setDeleteModal(null);
     } catch (err) { console.error('Delete failed:', err); }
   };

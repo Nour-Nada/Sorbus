@@ -30,7 +30,7 @@ function getFileIcon(name) {
 }
 
 function FileView() {
-  const { folderCache, loadFolder, invalidateFolder, currentPath, setCurrentPath, uploadFiles, storageReady, filesLoading, loadErrorPath, scanning } = useFileContext();
+  const { folderCache, loadFolder, invalidateFolder, refetchFolder, currentPath, setCurrentPath, uploadFiles, storageReady, filesLoading, loadErrorPath, scanning } = useFileContext();
   const { userId } = useAccountContext();
 
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
@@ -124,8 +124,7 @@ function FileView() {
         new_name: name.trim(),
         folder_path: currentPathStr,
       });
-      invalidateFolder(currentPathStr);
-      loadFolder(currentPathStr);
+      refetchFolder(currentPathStr);
     } catch (err) { console.error('Failed to create folder:', err); }
   };
 
@@ -135,9 +134,8 @@ function FileView() {
     await Promise.allSettled(moveModal.items.map(item =>
       axios.patch(`/api/files/move/${item.id}/${userId}`, { new_location: newParent })
     ));
-    invalidateFolder(currentPathStr);
-    invalidateFolder(newParent);
-    loadFolder(currentPathStr);
+    invalidateFolder(newParent); // destination isn't visible now — just drop it so it re-fetches when opened
+    refetchFolder(currentPathStr); // source folder: refresh in place, no loading flash
     setMoveModal(null);
     setSelectedItems(new Set());
   };
@@ -151,8 +149,7 @@ function FileView() {
     }));
     const failed = results.filter(r => r.status === 'rejected').length;
     if (failed > 0) console.error(`${failed} of ${selectedItems.size} items failed to delete`);
-    invalidateFolder(currentPathStr);
-    loadFolder(currentPathStr);
+    refetchFolder(currentPathStr);
     setSelectedItems(new Set());
     setBatchDeleteModal(false);
   };
@@ -172,9 +169,8 @@ function FileView() {
       await Promise.all(itemsToMove.map(item =>
         axios.patch(`/api/files/move/${item.id}/${userId}`, { new_location: newParent })
       ));
-      invalidateFolder(currentPathStr);
-      invalidateFolder(newParent);
-      loadFolder(currentPathStr);
+      invalidateFolder(newParent); // destination not visible — drop it so it re-fetches when opened
+      refetchFolder(currentPathStr); // source folder: refresh in place, no loading flash
       if (isMultiMove) setSelectedItems(new Set());
     } catch (err) { console.error('Move failed:', err); }
     setDraggedItem(null);

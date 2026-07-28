@@ -287,6 +287,7 @@ app.get("/api/files/download/:file_id/:user_id", limiter, verifyJWT, verifyUserI
       responseType: "stream"
     }); //Sets reponse equal to API call as well as calling the C++ server API
     res.status(response.status); //Sets the status to the status of the response from the C++ server
+    ['content-disposition', 'content-type', 'content-length'].forEach(h => { if (response.headers[h]) res.setHeader(h, response.headers[h]); }); //Forward file headers so the browser downloads (not displays) it — needed for iOS
     response.data.on('error', () => res.destroy()); //A reset upstream stream must not crash the process
     response.data.pipe(res); //Uses response to pipe the data from the frontend to the C++ server
   } catch (error) {
@@ -535,6 +536,7 @@ app.get("/api/files/download-stream/:file_id/:user_id", downloadLimiter, async (
       responseType: "stream"
     });
     res.status(response.status);
+    ['content-disposition', 'content-type', 'content-length'].forEach(h => { if (response.headers[h]) res.setHeader(h, response.headers[h]); }); //Forward file headers so the browser downloads (not displays) it — needed for iOS
     response.data.on('error', () => res.destroy()); //A reset upstream stream must not crash the process
     response.data.pipe(res);
   } catch (error) {

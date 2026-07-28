@@ -1,6 +1,7 @@
 .side-bar {
     width: 250px;
     height: 100vh;
+    height: 100dvh;
     background-color: #1a2035;
     display: flex;
     flex-direction: column;
@@ -390,6 +391,7 @@
         top: 0;
         left: -250px;
         height: 100vh;
+        height: 100dvh;
         width: 250px;
         z-index: 100;
         transition: left 0.3s ease;

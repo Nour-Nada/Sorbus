@@ -13,7 +13,7 @@ import { useAccountContext } from '../context/AccountContext.jsx';
 
 function FileItemActions({ item, openFolder, onRenameStart, onMoveStart }) {
   // Per-item action buttons; item = { id, name, isFolder, size, ext }
-  const { currentPath, invalidateFolder, loadFolder } = useFileContext();
+  const { currentPath, refetchFolder } = useFileContext();
   const { userId } = useAccountContext();
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -45,9 +45,7 @@ function FileItemActions({ item, openFolder, onRenameStart, onMoveStart }) {
     if (!newValue.trim() || newValue.trim() === item.name) return;
     try {
       await axios.patch(`/api/files/name/${item.id}/${userId}`, { new_name: newValue.trim() });
-      const pathStr = currentPath.join('/');
-      invalidateFolder(pathStr);
-      loadFolder(pathStr);
+      refetchFolder(currentPath.join('/'));
     } catch (err) { console.error('Rename failed:', err); }
   };
 
@@ -55,9 +53,7 @@ function FileItemActions({ item, openFolder, onRenameStart, onMoveStart }) {
     // Deletes the file or folder (server cascades folder deletes) and reloads the current folder
     try {
       await axios.delete(`/api/files/delete/${item.id}/${userId}`);
-      const pathStr = currentPath.join('/');
-      invalidateFolder(pathStr);
-      loadFolder(pathStr);
+      refetchFolder(currentPath.join('/'));
       setDeleteOpen(false);
     } catch (err) { console.error('Delete failed:', err); }
   };

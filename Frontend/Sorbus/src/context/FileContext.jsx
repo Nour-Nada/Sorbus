@@ -61,6 +61,27 @@ export const FileProvider = ({children}) => {
         setFolderCache({ ...cacheRef.current });
     }, []);
 
+    const refetchFolder = useCallback((folderPath, explicitUserId) => {
+        // Re-fetches a folder in place WITHOUT clearing it first, so the old list stays visible after a mutation — no loading flash
+        const uid = explicitUserId ?? userId;
+        if (!uid || pendingFetches.current.has(folderPath)) return;
+        pendingFetches.current.add(folderPath);
+        setLoadingSet(prev => new Set(prev).add(folderPath));
+        axios.get(`/api/files/name/${uid}`, { params: { folder: folderPath } })
+            .then(res => {
+                const initialized = res.data.initialized !== false;
+                if (folderPath === '') setStorageReady(initialized);
+                const items = initialized ? (res.data.items ?? []) : [];
+                cacheRef.current = { ...cacheRef.current, [folderPath]: items };
+                setFolderCache({ ...cacheRef.current });
+            })
+            .catch(err => console.error('[/api/files/name refetch]', folderPath, err.response?.status ?? err.code, err.response?.data || err.message))
+            .finally(() => {
+                pendingFetches.current.delete(folderPath);
+                setLoadingSet(prev => { const s = new Set(prev); s.delete(folderPath); return s; });
+            });
+    }, [userId]);
+
     const refreshFiles = useCallback(() => {
         // Clears the entire cache and reloads from root — used after storage path changes
         cacheRef.current = {};
@@ -140,16 +161,15 @@ export const FileProvider = ({children}) => {
                 .then(() => setUploads(prev => prev.map((u, j) => j === i ? { ...u, progress: 100, status: 'done' } : u)))
                 .catch(err => setUploads(prev => prev.map((u, j) => j === i ? { ...u, status: 'error', error: uploadErrorMessage(err) } : u)));
         }));
-        invalidateFolder(location);
-        loadFolder(location);
-    }, [userId, currentPath, invalidateFolder, loadFolder]);
+        refetchFolder(location);
+    }, [userId, currentPath, refetchFolder]);
 
     const clearUploads = useCallback(() => setUploads([]), []);
 
     const filesLoading = loadingSet.has(currentPath.join('/')); // true when the currently viewed folder is being fetched
 
     return (
-        <FileContext.Provider value={{ folderCache, loadFolder, invalidateFolder, refreshFiles, runInitialScan, currentPath, setCurrentPath, uploadFiles, uploads, clearUploads, storageReady, filesLoading, loadErrorPath, scanning }}>
+        <FileContext.Provider value={{ folderCache, loadFolder, invalidateFolder, refetchFolder, refreshFiles, runInitialScan, currentPath, setCurrentPath, uploadFiles, uploads, clearUploads, storageReady, filesLoading, loadErrorPath, scanning }}>
             {children}
         </FileContext.Provider>
     );

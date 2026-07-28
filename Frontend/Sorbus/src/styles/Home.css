@@ -2,6 +2,7 @@
     display: flex;
     flex-direction: row;
     height: 100vh;
+    height: 100dvh; /* dynamic viewport height — fills the visible area on mobile, no toolbar gap or landscape cutoff */
     overflow: hidden;
 }
 
