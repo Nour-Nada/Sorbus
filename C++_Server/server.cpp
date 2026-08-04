@@ -105,7 +105,11 @@ void set_file_location(const std::string& new_location) { // Updates the file lo
 
 const int MAX_FILES = []() { //Maximum number of files allowed in the storage location this is to prevent the server from crashing
     const char* value = std::getenv("FILEAPP_MAX_FILES");
-    return (value && *value) ? std::stoi(value) : 5000000;
+    if (value && *value) {
+        try { return std::stoi(value); }
+        catch (...) {} //Malformed value — fall through to the default instead of throwing during static init (which would crash before main)
+    }
+    return 5000000;
 }(); //The maximum number of files allowed in the storage location
 
 //Database File Path
@@ -244,9 +248,13 @@ static std::string trim_leading_separators(std::string path) { //Removes the lea
 }
 
 static bool is_path_within_base(const fs::path& base, const fs::path& target) { // Just checks to path's against each other to ensure that target is within the base path passed in
-    //Normalizes the paths
-    const auto base_norm = fs::absolute(base).lexically_normal();
-    const auto target_norm = fs::absolute(target).lexically_normal();
+    //Resolve symlinks to their real target so a link inside the root can't point outside it and slip past this check.
+    //weakly_canonical tolerates a not-yet-existing final component (upload/create targets); the error_code overload returns false instead of throwing on failure.
+    std::error_code ec;
+    const auto base_norm = fs::weakly_canonical(base, ec);
+    if (ec) return false;
+    const auto target_norm = fs::weakly_canonical(target, ec);
+    if (ec) return false;
 
     //Sets b and t to the first part of the path
     auto b = base_norm.begin();
@@ -378,6 +386,9 @@ int main(void)
     std::streambuf* coutBuf = std::cout.rdbuf();  // save original buffer
     std::cout.rdbuf(logFile.rdbuf()); //changes original buffer
 
+    // Auth model: this server is reachable ONLY through the Node gateway (shared `key` header, checked below).
+    // The gateway verifies the JWT and guarantees the :user_id in each route's URL matches the authenticated user,
+    // so the owner/editor/viewer access checks in the routes act on a trusted user_id — never expose this server directly.
     svr.set_pre_request_handler([&](const httplib::Request& req, httplib::Response& res) { //Does the api key check logic before even allowing any routes to  be hit
             LOG_TIME();
 
@@ -954,7 +965,7 @@ int main(void)
                 "application/octet-stream",
                 [file](size_t, httplib::DataSink& sink) mutable { //The C++ server libraires syntax for chunking data to send
                     const size_t CHUNK_SIZE = 64 * 1024; // 64 KB
-                    char buffer[CHUNK_SIZE];
+                    static thread_local char buffer[CHUNK_SIZE]; // off the stack — a 64KB stack buffer can overflow small worker-thread stacks (e.g. musl/Alpine)
 
                     // Read one chunk per call
                     file->read(buffer, CHUNK_SIZE);
@@ -1226,6 +1237,7 @@ int main(void)
                 DB_Open_Connection.commit();
             }
             catch (const std::exception& e) {
+                std::filesystem::remove(file_path); //Remove the just-written file so a failed insert doesn't orphan it on disk (out of sync with the DB)
                 res.status = 500;
                 std::cout << e.what() << std::endl;
                 res.set_content(DB_QUERY_ERROR, "text/plain"); //Sends back error to Node.js backend
@@ -1621,7 +1633,15 @@ int main(void)
             }
 
             try {
-                fs::rename(oldPath, newPath); //moves the file or folder (fs::rename handles directories recursively)
+                std::error_code ec;
+                fs::rename(oldPath, newPath, ec); //moves the file or folder (fs::rename handles directories recursively)
+                if (ec == std::errc::cross_device_link) { //Source and destination are on different filesystems — rename can't cross them, so copy then delete
+                    fs::copy(oldPath, newPath, fs::copy_options::recursive | fs::copy_options::overwrite_existing);
+                    fs::remove_all(oldPath);
+                }
+                else if (ec) {
+                    throw std::runtime_error(ec.message());
+                }
             }
             catch (const std::exception& e) {
                 res.status = 500;
@@ -1804,13 +1824,16 @@ int main(void)
                     return;
                 }
 
+                int old_file_count = current_file_count.load(); //Saved so it can be restored if the rebuild fails
                 try {
                     reinitialize_files(DB_Connection, user_id_int); //calls the reinitialize route
                 }
                 catch (const std::exception& e) {
+                    current_file_count = old_file_count; //Restore the count; returning without commit rolls the DB back
                     res.status = 500;
                     std::cout << e.what() << std::endl;
                     res.set_content(e.what(), "text/plain");
+                    return; //Return before commit so the failed/partial rebuild is discarded, not committed as a success
                 }
 
                 DB_Open_Connection.commit();
@@ -1947,5 +1970,5 @@ int main(void)
     svr.listen("0.0.0.0", PORT);
 
     //std::cout << std::endl << std::endl << "The amount of API calls made to valid endpoints are: " << api_traffic_count << std::endl;
-    return api_traffic_count.load(std::memory_order_relaxed); //Returns how many API calls were made to valid endpoints while the server was open
+    return 0; //Clean exit — exit codes are 0-255, so returning the traffic counter would wrap and read as a failure to service managers
 }
