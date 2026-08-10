@@ -31,7 +31,7 @@ Sorbus is a self-hosted personal cloud storage system. Users run the C++ server 
 ```
 C++_Server/
   server.cpp                  — entire C++ server (single file)
-  sorbus.db                   — SQLite database (example data committed)
+  sorbus.db                   — SQLite database (git-ignored, created on first run)
   header_libs/
     httplib.h                 — cpp-httplib (header-only HTTP server)
     json.hpp                  — nlohmann/json (header-only JSON)

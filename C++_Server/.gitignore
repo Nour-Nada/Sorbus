@@ -82,3 +82,8 @@ C++_Server_VS/
 enc_temp_folder/
 
 server_output.txt
+
+# SQLite database - never commit, it holds an index of every file on your drive
+*.db
+*.db-wal
+*.db-shm

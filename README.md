@@ -373,7 +373,7 @@ Browser (React) --> nginx (/api proxy) --> Node.js gateway --> C++ server --> SQ
 ```
 C++_Server/
   server.cpp                  - entire C++ server (single file)
-  sorbus.db                   - SQLite database (ships with example test users)
+  sorbus.db                   - SQLite database (git-ignored, created on first run)
   header_libs/                - vendored header-only / compiled libs
     httplib.h                 - cpp-httplib (HTTP server)
     json.hpp                  - nlohmann/json
