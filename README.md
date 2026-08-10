@@ -215,7 +215,7 @@ docker compose -f docker-compose.cloud.yml --env-file .env.cloud up -d
 
 **Or one-click to Render** (recommended for most people, see [Recommended Setup](#recommended-setup)):
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Nour-Nada/Sorbus&blueprintPath=deploy/render.yaml)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Nour-Nada/Sorbus&path=deploy/render.yaml)
 
 <details>
 <summary><strong>Render walkthrough (step by step)</strong></summary>
